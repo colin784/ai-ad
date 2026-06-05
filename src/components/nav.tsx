@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Settings, LogOut } from "lucide-react";
+import { toast } from "sonner";
 import { palette } from "./panel-ui";
 
 const LINKS = [
@@ -9,46 +11,52 @@ const LINKS = [
   { href: "/creators", label: "Creators" },
   { href: "/projects", label: "Projects" },
   { href: "/assets", label: "Assets" },
-  { href: "/review", label: "Review editor" },
+  { href: "/review", label: "Review" },
 ];
 
 export function Nav() {
   const pathname = usePathname();
   return (
-    <aside
+    <header
       style={{
-        width: 224,
-        flexShrink: 0,
-        borderRight: `1px solid ${palette.border}`,
-        background: palette.panelBg,
-        padding: 20,
+        display: "flex",
+        alignItems: "center",
+        height: 56,
+        padding: "0 40px",
+        borderBottom: `1px solid ${palette.border}`,
+        background: palette.pageBg,
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
       }}
     >
-      <div style={{ marginBottom: 28, paddingLeft: 6 }}>
-        <div
+      {/* Brand */}
+      <Link
+        href="/"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 10,
+          textDecoration: "none",
+          marginRight: 28,
+        }}
+      >
+        <span
           style={{
-            fontSize: 14,
-            fontWeight: 700,
-            color: palette.titleText,
-            letterSpacing: "-0.01em",
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            background: palette.titleText,
+            display: "inline-block",
           }}
-        >
-          AI Ad Editor
-        </div>
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.12em",
-            color: palette.faint,
-            marginTop: 4,
-          }}
-        >
-          internal · phase 1
-        </div>
-      </div>
-      <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        />
+        <span style={{ fontSize: 15, fontWeight: 700, color: palette.titleText }}>
+          Panel
+        </span>
+      </Link>
+
+      {/* Tabs */}
+      <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
         {LINKS.map((l) => {
           const active =
             l.href === "/" ? pathname === "/" : pathname?.startsWith(l.href);
@@ -57,15 +65,14 @@ export function Nav() {
               key={l.href}
               href={l.href}
               style={{
-                padding: "8px 10px",
-                borderRadius: 4,
+                padding: "6px 12px",
+                borderRadius: 6,
                 fontSize: 13,
-                fontWeight: active ? 600 : 500,
-                color: active ? palette.strongText : palette.secondary,
-                background: active ? "rgba(74,222,128,0.08)" : "transparent",
-                border: `1px solid ${active ? "rgba(74,222,128,0.25)" : "transparent"}`,
+                fontWeight: 600,
+                color: active ? palette.titleText : palette.secondary,
+                background: active ? "rgba(255,255,255,0.06)" : "transparent",
                 textDecoration: "none",
-                transition: "color 120ms, background 120ms, border-color 120ms",
+                transition: "color 120ms, background 120ms",
               }}
             >
               {l.label}
@@ -73,6 +80,53 @@ export function Nav() {
           );
         })}
       </nav>
-    </aside>
+
+      {/* Right actions */}
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 16 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            color: palette.secondary,
+          }}
+        >
+          <Settings size={14} />
+          Admin
+        </span>
+        <button
+          onClick={() => toast.info("No auth wired in this build")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            borderRadius: 4,
+            background: "transparent",
+            border: `1px solid ${palette.controlBorder}`,
+            color: palette.body,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "color 120ms, border-color 120ms",
+          }}
+          onMouseEnter={(e) => {
+            const el = e.currentTarget;
+            el.style.color = palette.strongText;
+            el.style.borderColor = palette.placeholder;
+          }}
+          onMouseLeave={(e) => {
+            const el = e.currentTarget;
+            el.style.color = palette.body;
+            el.style.borderColor = palette.controlBorder;
+          }}
+        >
+          <LogOut size={14} />
+          Log out
+        </button>
+      </div>
+    </header>
   );
 }

@@ -283,6 +283,55 @@ export function Stat({
   );
 }
 
+// ---------- Stat band (divided hero row, à la the Panel admin) ----------
+
+export function StatBand({
+  cells,
+}: {
+  cells: { label: string; value: ReactNode; color?: string; sub?: ReactNode }[];
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${cells.length}, 1fr)`,
+        border: `1px solid ${palette.border}`,
+        borderRadius: 4,
+        overflow: "hidden",
+        background: palette.panelBg,
+      }}
+    >
+      {cells.map((c, i) => (
+        <div
+          key={i}
+          style={{
+            padding: "22px 24px",
+            borderLeft: i ? `1px solid ${palette.border}` : "none",
+          }}
+        >
+          <SectionLabel>{c.label}</SectionLabel>
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 34,
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              fontFamily: mono,
+              color: c.color ?? palette.titleText,
+              lineHeight: 1,
+            }}
+          >
+            {c.value}
+          </div>
+          {c.sub && (
+            <div style={{ marginTop: 8, fontSize: 12, color: palette.secondary }}>{c.sub}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ---------- Progress bar ----------
 
 export function ProgressBar({ pct, color = palette.accent }: { pct: number; color?: string }) {

@@ -8,7 +8,7 @@ import {
   EmptyState,
   PageHero,
   SectionLabel,
-  Stat,
+  StatBand,
   StatusChip,
   palette,
   mono,
@@ -20,14 +20,13 @@ export default async function DashboardPage() {
   const [creatorRows, projectRows, assetRows] = await Promise.all([
     db.select().from(creators),
     db.select().from(projects),
-    db.select().from(sourceAssets).orderBy(desc(sourceAssets.createdAt)).limit(8),
+    db.select().from(sourceAssets).orderBy(desc(sourceAssets.createdAt)),
   ]);
 
-  const stats = [
-    { label: "Creators", value: creatorRows.length, href: "/creators" },
-    { label: "Projects", value: projectRows.length, href: "/projects" },
-    { label: "Assets", value: assetRows.length, href: "/assets" },
-  ];
+  const exported = assetRows.filter((a) => a.status === "exported").length;
+  const inReview = assetRows.filter((a) => a.status === "review").length;
+  const failed = assetRows.filter((a) => a.status === "failed").length;
+  const recent = assetRows.slice(0, 8);
 
   return (
     <div>
@@ -36,21 +35,24 @@ export default async function DashboardPage() {
         subtitle="Transcript-driven ad editor · Phase 1 foundation"
       />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        {stats.map((s) => (
-          <Link key={s.label} href={s.href} style={{ textDecoration: "none" }}>
-            <Card>
-              <Stat label={s.label} value={s.value} />
-            </Card>
-          </Link>
-        ))}
+      <div style={{ marginBottom: 24 }}>
+        <StatBand
+          cells={[
+            { label: "Creators", value: creatorRows.length },
+            { label: "Projects", value: projectRows.length },
+            {
+              label: "Assets",
+              value: assetRows.length,
+              sub: `${inReview} in review`,
+            },
+            {
+              label: "Exported",
+              value: exported,
+              color: exported > 0 ? palette.accent : palette.titleText,
+              sub: failed > 0 ? `${failed} failed` : undefined,
+            },
+          ]}
+        />
       </div>
 
       <Card style={{ marginBottom: 24 }}>
@@ -91,7 +93,7 @@ export default async function DashboardPage() {
       </Card>
 
       <SectionLabel style={{ marginBottom: 10 }}>Recent assets</SectionLabel>
-      {assetRows.length === 0 ? (
+      {recent.length === 0 ? (
         <EmptyState>
           No assets yet. Run <code style={{ fontFamily: mono }}>npm run db:seed</code> to load
           sample data, then open a project.
@@ -99,7 +101,7 @@ export default async function DashboardPage() {
       ) : (
         <Card pad={0}>
           <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-            {assetRows.map((a, i) => (
+            {recent.map((a, i) => (
               <li
                 key={a.id}
                 style={{
@@ -110,9 +112,7 @@ export default async function DashboardPage() {
                   borderTop: i === 0 ? "none" : `1px solid ${palette.divider}`,
                 }}
               >
-                <span style={{ fontSize: 13, color: palette.strongText }}>
-                  {a.filename}
-                </span>
+                <span style={{ fontSize: 13, color: palette.strongText }}>{a.filename}</span>
                 <StatusChip status={a.status} label={statusLabel(a.status)} />
               </li>
             ))}
