@@ -3,19 +3,23 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projects, creators } from "@/db/schema";
 import { Card, EmptyState, PageHero, palette, mono } from "@/components/panel-ui";
+import { safe } from "@/lib/safe-query";
 
 export const revalidate = 30;
 
 export default async function ProjectsPage() {
-  const rows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      brief: projects.brief,
-      creatorName: creators.name,
-    })
-    .from(projects)
-    .leftJoin(creators, eq(projects.creatorId, creators.id));
+  const rows = await safe(
+    db
+      .select({
+        id: projects.id,
+        name: projects.name,
+        brief: projects.brief,
+        creatorName: creators.name,
+      })
+      .from(projects)
+      .leftJoin(creators, eq(projects.creatorId, creators.id)),
+    [],
+  );
 
   return (
     <div>

@@ -3,6 +3,7 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { creators, projects, sourceAssets } from "@/db/schema";
 import { PIPELINE_STAGES, statusLabel } from "@/domain/jobState";
+import { safe } from "@/lib/safe-query";
 import {
   Card,
   EmptyState,
@@ -19,9 +20,9 @@ export const revalidate = 30;
 
 export default async function DashboardPage() {
   const [creatorRows, projectRows, assetRows] = await Promise.all([
-    db.select().from(creators),
-    db.select().from(projects),
-    db.select().from(sourceAssets).orderBy(desc(sourceAssets.createdAt)),
+    safe(db.select().from(creators), []),
+    safe(db.select().from(projects), []),
+    safe(db.select().from(sourceAssets).orderBy(desc(sourceAssets.createdAt)), []),
   ]);
 
   const exported = assetRows.filter((a) => a.status === "exported").length;

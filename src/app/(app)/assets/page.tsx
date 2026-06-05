@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { sourceAssets, projects } from "@/db/schema";
 import { statusLabel } from "@/domain/jobState";
+import { safe } from "@/lib/safe-query";
 import {
   Card,
   EmptyState,
@@ -16,18 +17,21 @@ import {
 export const revalidate = 30;
 
 export default async function AssetsPage() {
-  const rows = await db
-    .select({
-      id: sourceAssets.id,
-      filename: sourceAssets.filename,
-      status: sourceAssets.status,
-      durationSeconds: sourceAssets.durationSeconds,
-      projectId: sourceAssets.projectId,
-      projectName: projects.name,
-    })
-    .from(sourceAssets)
-    .leftJoin(projects, eq(sourceAssets.projectId, projects.id))
-    .orderBy(desc(sourceAssets.createdAt));
+  const rows = await safe(
+    db
+      .select({
+        id: sourceAssets.id,
+        filename: sourceAssets.filename,
+        status: sourceAssets.status,
+        durationSeconds: sourceAssets.durationSeconds,
+        projectId: sourceAssets.projectId,
+        projectName: projects.name,
+      })
+      .from(sourceAssets)
+      .leftJoin(projects, eq(sourceAssets.projectId, projects.id))
+      .orderBy(desc(sourceAssets.createdAt)),
+    [],
+  );
 
   return (
     <div>
