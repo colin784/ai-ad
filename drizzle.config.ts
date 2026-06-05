@@ -1,12 +1,12 @@
 import { defineConfig } from "drizzle-kit";
 
-// `turso` dialect drives the libSQL client and accepts local `file:` URLs,
-// so the same schema works locally (file) and against Turso/libSQL in prod.
+// Postgres (Supabase). Set DATABASE_URL in the shell before running db:* —
+// e.g. the Supabase "Connection string" (transaction pooler, port 6543).
 export default defineConfig({
-  dialect: "turso",
+  dialect: "postgresql",
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "file:local.db",
+    url: process.env.DATABASE_URL ?? "",
   },
 });

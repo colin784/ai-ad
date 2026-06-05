@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Native/driver deps that must stay external to the server bundle.
-  serverExternalPackages: ["@libsql/client"],
+  // DB driver kept external to the server bundle.
+  serverExternalPackages: ["postgres"],
 };
 
 export default nextConfig;

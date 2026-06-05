@@ -9,7 +9,7 @@ Turns raw long-form creator footage into short-form ad creatives: transcribe →
 This is the **Foundation + typed seams** build. The whole pipeline loop runs end-to-end with **mock providers** — no API keys required — so you can exercise the data model, the EDL contract, and the state machine before wiring real vendors.
 
 - **App shell** (`src/app`) — dashboard, creators, projects, project detail, assets. Auth is intentionally out of scope but the layout is structured for it.
-- **Data model** (`src/db/schema.ts`) — `Creator → Project → SourceAsset → Transcript → EditDecisionList → RenderJob → OutputVariant`, on Drizzle + libSQL/SQLite.
+- **Data model** (`src/db/schema.ts`) — `Creator → Project → SourceAsset → Transcript → EditDecisionList → RenderJob → OutputVariant`, on Drizzle + Supabase Postgres.
 - **EDL contract** (`src/domain/edl.ts`) — the strict-JSON Zod schema the renderer consumes, plus transcript schema. Overlap/ordering validation included.
 - **Job state machine** (`src/domain/jobState.ts`) — `uploaded → transcribing → ready_for_analysis → analyzed → rendering → review → exported` (+ `failed`/retry), with guarded transitions.
 - **Provider seams** (`src/lib/providers`) — `AsrProvider` / `LlmProvider` / `RenderProvider` interfaces with mock implementations and an env-driven registry. Swap in AssemblyAI/Deepgram, Anthropic/OpenAI, and ffmpeg/Remotion here.
@@ -17,17 +17,20 @@ This is the **Foundation + typed seams** build. The whole pipeline loop runs end
 
 ## Tech
 
-Next.js (App Router) · TypeScript · Tailwind v4 · Drizzle ORM · libSQL/SQLite · Zod.
+Next.js (App Router) · TypeScript · Tailwind v4 · Drizzle ORM · Supabase Postgres · Zod.
 
 ## Getting started
 
 ```bash
 npm install
 cp .env.example .env          # PowerShell: Copy-Item .env.example .env
-npm run db:push               # create the SQLite schema (local.db)
+# set DATABASE_URL in .env to your Supabase connection string, then:
+npm run db:push               # create the Postgres schema in Supabase
 npm run db:seed               # load 2 creators, 2 projects, 3 assets
 npm run dev                   # http://localhost:3000
 ```
+
+> The DB is **Supabase Postgres** (Drizzle + postgres-js). There's no local file DB — point `DATABASE_URL` at your Supabase project (a free project works for local dev too).
 
 Open a project → click **Run pipeline** on an asset to run transcribe → analyze → render with the mocks. The asset advances through the state machine, proposed EDL variants appear, and a rendered output variant is recorded.
 
@@ -87,46 +90,39 @@ How it works:
 
 (Uses the official `@anthropic-ai/sdk`. The JSON Schema is hand-written rather than via the SDK's `betaZodOutputFormat` helper, which requires zod v4 — this project is on zod v3; validation still runs through our zod-v3 `EdlSchema`.)
 
-## Deploy to Railway (with Turso)
+## Deploy to Railway (with Supabase Postgres)
 
-Railway's container filesystem is ephemeral, so production uses **Turso** (hosted libSQL) instead of a local SQLite file. No code change is needed — the app already reads `DATABASE_URL` + `DATABASE_AUTH_TOKEN`.
+Railway's container filesystem is ephemeral, so production uses **Supabase** (hosted Postgres). The app reads a single `DATABASE_URL`.
 
-### 1. Create the Turso database (once)
+### 1. Create a Supabase project (once)
 
-```bash
-# install + login (https://docs.turso.tech)
-turso db create ai-ad-editor
-turso db show ai-ad-editor --url          # -> libsql://ai-ad-editor-<org>.turso.io
-turso db tokens create ai-ad-editor       # -> the auth token
+Supabase dashboard → New project. Then **Project Settings → Database → Connection string** and copy the **Transaction pooler** string (port 6543):
+
+```
+postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
 ```
 
-### 2. Push schema + seed into Turso (from your machine)
+### 2. Push schema + seed into Supabase (from your machine)
 
 ```powershell
-$env:DATABASE_URL = "libsql://ai-ad-editor-<org>.turso.io"
-$env:DATABASE_AUTH_TOKEN = "<token>"
+$env:DATABASE_URL = "postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres"
 npm run db:push
 npm run db:seed
 ```
 
-### 3. Push to GitHub
+### 3. Connect on Railway
 
-```bash
-git push -u origin main      # after creating an empty GitHub repo and adding it as origin
-```
-
-### 4. Connect on Railway
-
-1. Railway → **New Project → Deploy from GitHub repo** → pick this repo. It auto-detects Next.js (Nixpacks; `railway.json` pins the build/start).
+1. Railway → **New Project → Deploy from GitHub repo** → pick `colin784/ai-ad`. It auto-detects Next.js (Nixpacks; `railway.json` pins build/start).
 2. Add **Variables**:
-   - `DATABASE_URL` = your Turso URL
-   - `DATABASE_AUTH_TOKEN` = your Turso token
+   - `DATABASE_URL` = your Supabase transaction-pooler connection string
    - *(optional, to enable real providers)* `ASR_PROVIDER=elevenlabs` + `ELEVENLABS_API_KEY`, `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`
 3. Railway builds (`next build`) and starts (`next start -H 0.0.0.0`, binding `$PORT`). Open the generated domain.
 
 With no provider keys set, the deployed app runs on the **mock** providers — fully browsable, including `/review`.
 
-> **Note:** uploaded/rendered media still writes to the local `STORAGE_DIR`, which is ephemeral on Railway. Real ingest/render needs object storage (S3/R2/GCS) — tracked as a follow-up, not wired yet.
+> **DB driver:** Drizzle + `postgres-js` with `prepare: false` (required for Supabase's transaction pooler).
+>
+> **Media note:** uploaded/rendered media still writes to the local `STORAGE_DIR`, which is ephemeral on Railway. Real ingest/render needs object storage — **Supabase Storage** is the natural fit and a follow-up.
 
 ## Deliberately out of scope (this engagement)
 

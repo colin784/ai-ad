@@ -1,37 +1,43 @@
-import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import {
+  pgTable,
+  text,
+  bigint,
+  integer,
+  boolean,
+  doublePrecision,
+} from "drizzle-orm/pg-core";
 
 /**
  * Core data model (per the scope of work, §6):
  *   Creator → Project → SourceAsset → Transcript → EditDecisionList
  *           → RenderJob → OutputVariant
  *
- * Notes:
- * - IDs are app-generated UUIDs (text) so they're stable across DB engines.
+ * Postgres (Supabase) via Drizzle pg-core.
+ * - IDs are app-generated UUIDs (text) so they're stable across engines.
  * - JSON-shaped columns are stored as text and parsed/validated with Zod at
- *   the edges (see src/domain/edl.ts). SQLite has no native JSON column type.
- * - Timestamps are unix-epoch ms integers.
+ *   the edges (see src/domain/edl.ts).
+ * - Timestamps are unix-epoch ms stored as bigint, defaulted in app code via
+ *   $defaultFn so there's no engine-specific SQL default.
  */
 
-const now = sql`(unixepoch() * 1000)`;
+const epochMs = () => Date.now();
 
-export const creators = sqliteTable("creators", {
+export const creators = pgTable("creators", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   handle: text("handle"),
   notes: text("notes"),
-  createdAt: integer("created_at").notNull().default(now),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
-export const projects = sqliteTable("projects", {
+export const projects = pgTable("projects", {
   id: text("id").primaryKey(),
   creatorId: text("creator_id")
     .notNull()
     .references(() => creators.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  // Default creative brief for this project; can be overridden per analysis.
   brief: text("brief"),
-  createdAt: integer("created_at").notNull().default(now),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
 /**
@@ -51,7 +57,7 @@ export const ASSET_STATUSES = [
 ] as const;
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
 
-export const sourceAssets = sqliteTable("source_assets", {
+export const sourceAssets = pgTable("source_assets", {
   id: text("id").primaryKey(),
   projectId: text("project_id")
     .notNull()
@@ -59,17 +65,16 @@ export const sourceAssets = sqliteTable("source_assets", {
   filename: text("filename").notNull(),
   // Key into object storage (local filesystem stands in during dev).
   storageKey: text("storage_key").notNull(),
-  durationSeconds: real("duration_seconds"),
-  sizeBytes: integer("size_bytes"),
+  durationSeconds: doublePrecision("duration_seconds"),
+  sizeBytes: bigint("size_bytes", { mode: "number" }),
   status: text("status", { enum: ASSET_STATUSES }).notNull().default("uploaded"),
-  // Populated when status === "failed".
   failedStage: text("failed_stage"),
   errorMessage: text("error_message"),
-  createdAt: integer("created_at").notNull().default(now),
-  updatedAt: integer("updated_at").notNull().default(now),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
-export const transcripts = sqliteTable("transcripts", {
+export const transcripts = pgTable("transcripts", {
   id: text("id").primaryKey(),
   assetId: text("asset_id")
     .notNull()
@@ -78,10 +83,10 @@ export const transcripts = sqliteTable("transcripts", {
   // Shape validated by TranscriptSchema in src/domain/edl.ts.
   content: text("content").notNull(),
   provider: text("provider").notNull(),
-  createdAt: integer("created_at").notNull().default(now),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
-export const editDecisionLists = sqliteTable("edit_decision_lists", {
+export const editDecisionLists = pgTable("edit_decision_lists", {
   id: text("id").primaryKey(),
   assetId: text("asset_id")
     .notNull()
@@ -90,8 +95,8 @@ export const editDecisionLists = sqliteTable("edit_decision_lists", {
   // Strict-JSON EDL consumed by the renderer. Validated by EdlSchema.
   payload: text("payload").notNull(),
   // True for the variant(s) a human approved for render/export.
-  approved: integer("approved", { mode: "boolean" }).notNull().default(false),
-  createdAt: integer("created_at").notNull().default(now),
+  approved: boolean("approved").notNull().default(false),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
 export const RENDER_JOB_STATUSES = [
@@ -102,7 +107,7 @@ export const RENDER_JOB_STATUSES = [
 ] as const;
 export type RenderJobStatus = (typeof RENDER_JOB_STATUSES)[number];
 
-export const renderJobs = sqliteTable("render_jobs", {
+export const renderJobs = pgTable("render_jobs", {
   id: text("id").primaryKey(),
   edlId: text("edl_id")
     .notNull()
@@ -113,19 +118,19 @@ export const renderJobs = sqliteTable("render_jobs", {
     .default("queued"),
   attempts: integer("attempts").notNull().default(0),
   errorMessage: text("error_message"),
-  createdAt: integer("created_at").notNull().default(now),
-  updatedAt: integer("updated_at").notNull().default(now),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
-export const outputVariants = sqliteTable("output_variants", {
+export const outputVariants = pgTable("output_variants", {
   id: text("id").primaryKey(),
   renderJobId: text("render_job_id")
     .notNull()
     .references(() => renderJobs.id, { onDelete: "cascade" }),
   storageKey: text("storage_key").notNull(),
   aspectRatio: text("aspect_ratio").notNull(),
-  durationSeconds: real("duration_seconds"),
-  createdAt: integer("created_at").notNull().default(now),
+  durationSeconds: doublePrecision("duration_seconds"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
 export type Creator = typeof creators.$inferSelect;
