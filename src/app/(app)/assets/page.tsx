@@ -13,7 +13,7 @@ import {
   mono,
 } from "@/components/panel-ui";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function AssetsPage() {
   const rows = await db

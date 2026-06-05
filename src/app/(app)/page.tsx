@@ -14,7 +14,8 @@ import {
   mono,
 } from "@/components/panel-ui";
 
-export const dynamic = "force-dynamic";
+// ISR: cached + prefetched so navigation is instant; refreshes every 30s.
+export const revalidate = 30;
 
 export default async function DashboardPage() {
   const [creatorRows, projectRows, assetRows] = await Promise.all([

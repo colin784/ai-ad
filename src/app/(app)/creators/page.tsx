@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { creators } from "@/db/schema";
 import { Card, EmptyState, PageHero, palette, mono } from "@/components/panel-ui";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function CreatorsPage() {
   const rows = await db.select().from(creators);

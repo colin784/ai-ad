@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { projects, creators } from "@/db/schema";
 import { Card, EmptyState, PageHero, palette, mono } from "@/components/panel-ui";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function ProjectsPage() {
   const rows = await db
