@@ -545,9 +545,8 @@ export function ReviewEditor() {
                     height: 56,
                     width: 56,
                     borderRadius: "50%",
-                    background: "rgba(0,0,0,0.45)",
+                    background: "rgba(0,0,0,0.55)",
                     color: "#fff",
-                    backdropFilter: "blur(6px)",
                     transition: "background 120ms",
                   }}
                 >
