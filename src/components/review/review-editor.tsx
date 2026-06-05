@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft, Check, Pause, Play, X } from "lucide-react";
 import {
   ASPECT_RATIOS,
   FILLER_WORDS,
@@ -14,6 +15,15 @@ import {
   sentenceDuration,
   type AspectRatio,
 } from "./mock-data";
+import {
+  Chip,
+  PrimaryButton,
+  SecondaryButton,
+  ProgressBar,
+  SectionLabel,
+  palette,
+  mono,
+} from "@/components/panel-ui";
 
 type Status = "approved" | "rejected" | null;
 type VariantState = { order: string[]; status: Status };
@@ -100,7 +110,6 @@ export function ReviewEditor() {
     if (includedSet.has(id)) {
       updateOrder(order.filter((x) => x !== id));
     } else {
-      // Re-insert keeping original chronological position among included clips.
       const origIndex = (x: string) => TRANSCRIPT.findIndex((s) => s.id === x);
       const next = [...order];
       const pos = next.findIndex((x) => origIndex(x) > origIndex(id));
@@ -139,104 +148,213 @@ export function ReviewEditor() {
   const captionText = captionId ? SENTENCE_BY_ID[captionId].text : "";
   const currentRole = captionId ? SENTENCE_BY_ID[captionId].role : undefined;
   // QR appears around the 50% mark and holds to the end (learned norm).
-  // At rest it's shown so the graphic is visible; during playback it appears on cue.
   const qrShown = duration > 0 && (!playing || elapsed / duration >= PROJECT.qrAppearPercent);
 
   return (
-    <div className="flex h-[calc(100vh-1px)] flex-col">
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        background: palette.pageBg,
+      }}
+    >
       {/* Top bar */}
-      <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-3">
-        <div className="flex items-center gap-3">
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          padding: "14px 24px",
+          borderBottom: `1px solid ${palette.border}`,
+          background: palette.panelBg,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <Link
             href="/"
-            className="rounded-md px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-white"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 8px",
+              borderRadius: 4,
+              color: palette.secondary,
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: "none",
+              transition: "color 120ms",
+            }}
           >
-            ← Back
+            <ArrowLeft size={12} />
+            Back
           </Link>
           <div>
-            <div className="text-sm font-semibold">{PROJECT.project}</div>
-            <div className="text-xs text-neutral-500">
+            <div style={{ fontSize: 14, fontWeight: 700, color: palette.titleText }}>
+              {PROJECT.project}
+            </div>
+            <div style={{ marginTop: 2, fontSize: 11, color: palette.tertiary }}>
               {PROJECT.creator} · {PROJECT.asset}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <AspectToggle aspect={aspect} onChange={setAspect} />
-          <button
-            onClick={reRender}
-            disabled={rendering}
-            className="rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
-          >
-            {rendering ? "Rendering…" : "Re-render"}
-          </button>
+          <PrimaryButton onClick={reRender} disabled={rendering}>
+            {rendering ? "Rendering" : "Re-render"}
+          </PrimaryButton>
         </div>
       </header>
 
       {/* Variant tabs */}
-      <div className="flex items-center gap-2 border-b border-neutral-800 px-6 py-2">
-        {VARIANTS.map((v) => {
-          const st = variantState[v.id];
-          const dur = st.order.reduce((s, id) => s + sentenceDuration(id), 0);
-          const active = v.id === activeId;
-          return (
-            <button
-              key={v.id}
-              onClick={() => setActiveId(v.id)}
-              className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm ${
-                active
-                  ? "bg-neutral-800 text-white"
-                  : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
-              }`}
-            >
-              <span className="font-medium">{v.label}</span>
-              <span className="text-xs text-neutral-500">{v.angle}</span>
-              <span className="text-xs text-neutral-500">· {dur.toFixed(0)}s</span>
-              {st.status === "approved" && <Dot className="bg-emerald-400" />}
-              {st.status === "rejected" && <Dot className="bg-red-400" />}
-            </button>
-          );
-        })}
-        <div className="ml-auto flex items-center gap-2">
-          <button
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "10px 24px",
+          borderBottom: `1px solid ${palette.border}`,
+          background: palette.panelBg,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            padding: 4,
+            gap: 4,
+            background: palette.pageBg,
+            border: `1px solid ${palette.subBorder}`,
+            borderRadius: 6,
+          }}
+        >
+          {VARIANTS.map((v) => {
+            const st = variantState[v.id];
+            const dur = st.order.reduce((s, id) => s + sentenceDuration(id), 0);
+            const active = v.id === activeId;
+            return (
+              <button
+                key={v.id}
+                onClick={() => setActiveId(v.id)}
+                style={{
+                  padding: "7px 14px",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: active ? "rgba(74,222,128,0.12)" : "transparent",
+                  color: active ? palette.accent : palette.secondary,
+                  border: `1px solid ${active ? "rgba(74,222,128,0.35)" : "transparent"}`,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  transition: "color 120ms, background 120ms, border-color 120ms",
+                }}
+              >
+                <span>{v.label}</span>
+                <span style={{ color: palette.tertiary, fontWeight: 500 }}>{v.angle}</span>
+                <span style={{ color: palette.tertiary, fontFamily: mono }}>
+                  · {dur.toFixed(0)}s
+                </span>
+                {st.status === "approved" && (
+                  <Dot color={palette.accent} />
+                )}
+                {st.status === "rejected" && (
+                  <Dot color={palette.destructive} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <SecondaryButton
             onClick={() => setStatus(state.status === "rejected" ? null : "rejected")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+            style={
               state.status === "rejected"
-                ? "bg-red-900 text-red-200"
-                : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-            }`}
+                ? {
+                    color: palette.destructive,
+                    borderColor: "rgba(248,113,113,0.4)",
+                  }
+                : undefined
+            }
           >
-            Reject
-          </button>
+            {state.status === "rejected" ? "Rejected" : "Reject"}
+          </SecondaryButton>
           <button
             onClick={() => setStatus(state.status === "approved" ? null : "approved")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              state.status === "approved"
-                ? "bg-emerald-600 text-white"
-                : "bg-emerald-700/40 text-emerald-200 hover:bg-emerald-600/60"
-            }`}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 4,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              background:
+                state.status === "approved"
+                  ? "rgba(74,222,128,0.18)"
+                  : "rgba(74,222,128,0.10)",
+              color: palette.accent,
+              border: "1px solid rgba(74,222,128,0.35)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "background 120ms",
+            }}
           >
-            {state.status === "approved" ? "Approved ✓" : "Approve"}
+            {state.status === "approved" && <Check size={12} />}
+            {state.status === "approved" ? "Approved" : "Approve"}
           </button>
         </div>
       </div>
 
       {/* Main */}
-      <div className="grid flex-1 grid-cols-[1.15fr_1fr] overflow-hidden">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.15fr 1fr",
+          flex: 1,
+          overflow: "hidden",
+        }}
+      >
         {/* Transcript editor */}
-        <section className="flex flex-col overflow-hidden border-r border-neutral-800">
-          <div className="flex items-center justify-between px-6 py-3">
+        <section
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            borderRight: `1px solid ${palette.border}`,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "14px 24px",
+              gap: 12,
+            }}
+          >
             <div>
-              <div className="text-sm font-medium">Transcript</div>
-              <div className="text-xs text-neutral-500">
-                Click a line to keep or cut it — removing a line removes that moment from the video.
+              <SectionLabel>Transcript</SectionLabel>
+              <div style={{ marginTop: 4, fontSize: 11, color: palette.tertiary }}>
+                Click a line to keep or cut it — removing a line removes that moment from the
+                video.
               </div>
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <Check label="Trim fillers" checked={trimFillers} onChange={setTrimFillers} />
-              <Check label="Hide removed" checked={hideRemoved} onChange={setHideRemoved} />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11 }}>
+              <Toggle label="Trim fillers" checked={trimFillers} onChange={setTrimFillers} />
+              <Toggle label="Hide removed" checked={hideRemoved} onChange={setHideRemoved} />
             </div>
           </div>
-          <div className="flex-1 space-y-1 overflow-y-auto px-4 pb-6">
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "0 16px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
             {TRANSCRIPT.map((s) => {
               const included = includedSet.has(s.id);
               if (!included && hideRemoved) return null;
@@ -246,35 +364,59 @@ export function ReviewEditor() {
                 <button
                   key={s.id}
                   onClick={() => toggleSentence(s.id)}
-                  className={`group flex w-full gap-3 rounded-md border-l-2 px-3 py-2 text-left transition ${
-                    included
-                      ? "border-emerald-500 bg-neutral-900/60 hover:bg-neutral-800/70"
-                      : "border-transparent opacity-45 hover:opacity-80"
-                  } ${isPlaying ? "ring-1 ring-emerald-400/60" : ""}`}
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "8px 12px",
+                    borderLeft: `2px solid ${included ? palette.accent : "transparent"}`,
+                    borderRight: "none",
+                    borderTop: "none",
+                    borderBottom: "none",
+                    background: included ? "rgba(255,255,255,0.02)" : "transparent",
+                    opacity: included ? 1 : 0.45,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    transition: "background 120ms, opacity 120ms",
+                    outline: isPlaying ? `1px solid rgba(74,222,128,0.5)` : "none",
+                  }}
                 >
-                  <span className="mt-0.5 flex w-20 shrink-0 flex-col gap-1">
-                    <span className="font-mono text-[11px] text-neutral-500">
+                  <span
+                    style={{
+                      marginTop: 2,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      width: 76,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span style={{ fontFamily: mono, fontSize: 11, color: palette.faint }}>
                       {formatTime(s.start)}
                     </span>
-                    <span
-                      className={`rounded px-1 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide ${
-                        isHook
-                          ? "bg-amber-500/20 text-amber-300"
-                          : "bg-neutral-800 text-neutral-400"
-                      }`}
+                    <Chip
+                      color={isHook ? palette.tagAmber : palette.tagGray}
+                      style={{
+                        fontSize: 9,
+                        padding: "1px 6px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        justifyContent: "center",
+                      }}
                     >
                       {ROLE_LABELS[s.role]}
-                    </span>
+                    </Chip>
                   </span>
                   <span
-                    className={`text-sm leading-relaxed ${
-                      included ? "text-neutral-100" : "text-neutral-500 line-through"
-                    }`}
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      color: included ? palette.strongText : palette.tertiary,
+                      textDecoration: included ? "none" : "line-through",
+                    }}
                   >
                     {renderWords(s.text, trimFillers && included)}
-                  </span>
-                  <span className="ml-auto self-center text-[11px] text-neutral-600 opacity-0 group-hover:opacity-100">
-                    {included ? "remove" : "keep"}
                   </span>
                 </button>
               );
@@ -283,91 +425,246 @@ export function ReviewEditor() {
         </section>
 
         {/* Preview + timeline */}
-        <section className="flex flex-col overflow-hidden">
-          <div className="flex flex-1 flex-col items-center justify-center overflow-hidden p-6">
+        <section style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 24,
+              overflow: "hidden",
+            }}
+          >
             {/* Preview frame */}
             <div
-              className="relative max-h-[46vh] overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-neutral-800"
-              style={{ aspectRatio: aspectCss, height: "46vh" }}
+              style={{
+                position: "relative",
+                height: "46vh",
+                maxHeight: "46vh",
+                aspectRatio: aspectCss,
+                overflow: "hidden",
+                borderRadius: 6,
+                background: "#000",
+                border: `1px solid ${palette.controlBorder}`,
+              }}
             >
-              {/* gradient backdrop */}
-              <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 via-neutral-900 to-indigo-500/20" />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%)",
+                }}
+              />
               {/* current beat chip (editor overlay — not burned into the video) */}
-              <div className="absolute left-0 top-0 p-3">
-                <span className="rounded bg-black/50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/90 backdrop-blur">
+              <div style={{ position: "absolute", left: 0, top: 0, padding: 12 }}>
+                <Chip
+                  color={palette.tagGray}
+                  style={{
+                    background: "rgba(0,0,0,0.55)",
+                    borderColor: "rgba(255,255,255,0.12)",
+                    color: palette.strongText,
+                    fontSize: 10,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                  }}
+                >
                   {currentRole ? ROLE_LABELS[currentRole] : "—"}
-                </span>
+                </Chip>
               </div>
               {/* QR code overlay — the one persistent on-screen graphic */}
               {qrShown && (
-                <div className="absolute right-0 top-0 flex flex-col items-center gap-1 p-3">
-                  <div className="grid h-14 w-14 grid-cols-3 grid-rows-3 gap-0.5 rounded bg-white p-1 shadow-lg">
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 0,
+                    padding: 12,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3,1fr)",
+                      gridTemplateRows: "repeat(3,1fr)",
+                      gap: 2,
+                      height: 56,
+                      width: 56,
+                      padding: 4,
+                      background: "#fff",
+                      borderRadius: 4,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                    }}
+                  >
                     {[1, 1, 0, 1, 0, 1, 0, 1, 1].map((b, i) => (
-                      <div key={i} className={b ? "bg-black" : "bg-white"} />
+                      <div key={i} style={{ background: b ? "#000" : "#fff" }} />
                     ))}
                   </div>
-                  <span className="rounded bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-white/90">
+                  <span
+                    style={{
+                      padding: "2px 6px",
+                      background: "rgba(0,0,0,0.55)",
+                      color: "#fff",
+                      fontSize: 9,
+                      fontWeight: 600,
+                      borderRadius: 3,
+                    }}
+                  >
                     Scan
                   </span>
                 </div>
               )}
-              {/* spoken line — editor reference only; captions are NOT burned in */}
-              <div className="absolute inset-x-0 bottom-12 px-4">
-                <p className="mx-auto max-w-[90%] text-center text-xs italic text-white/55">
+              {/* spoken line — editor reference only; captions NOT burned in */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 48,
+                  padding: "0 20px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    margin: "0 auto",
+                    maxWidth: "90%",
+                    fontSize: 12,
+                    fontStyle: "italic",
+                    color: "rgba(255,255,255,0.55)",
+                    lineHeight: 1.5,
+                  }}
+                >
                   {captionText}
-                </p>
+                </div>
               </div>
               {/* play button */}
               <button
                 onClick={() => setPlaying((p) => !p)}
-                className="absolute inset-0 flex items-center justify-center"
                 aria-label={playing ? "Pause" : "Play"}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
               >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 text-2xl text-white backdrop-blur transition hover:bg-black/60">
-                  {playing ? "❚❚" : "▶"}
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: 56,
+                    width: 56,
+                    borderRadius: "50%",
+                    background: "rgba(0,0,0,0.45)",
+                    color: "#fff",
+                    backdropFilter: "blur(6px)",
+                    transition: "background 120ms",
+                  }}
+                >
+                  {playing ? <Pause size={20} /> : <Play size={20} />}
                 </span>
               </button>
               {/* scrubber */}
-              <div className="absolute inset-x-0 bottom-0 p-3">
-                <div className="h-1 w-full overflow-hidden rounded-full bg-white/20">
+              <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 12 }}>
+                <div
+                  style={{
+                    height: 3,
+                    width: "100%",
+                    background: "rgba(255,255,255,0.15)",
+                    borderRadius: 2,
+                    overflow: "hidden",
+                  }}
+                >
                   <div
-                    className="h-full bg-white transition-all"
-                    style={{ width: `${duration ? Math.min(100, (elapsed / duration) * 100) : 0}%` }}
+                    style={{
+                      height: "100%",
+                      width: `${duration ? Math.min(100, (elapsed / duration) * 100) : 0}%`,
+                      background: "#fff",
+                      transition: "width 200ms",
+                    }}
                   />
                 </div>
-                <div className="mt-1 flex justify-between text-[10px] text-white/80">
+                <div
+                  style={{
+                    marginTop: 4,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 10,
+                    color: "rgba(255,255,255,0.7)",
+                    fontFamily: mono,
+                  }}
+                >
                   <span>{formatTime(elapsed)}</span>
-                  <span>{aspect}</span>
+                  <span style={{ fontFamily: mono }}>{aspect}</span>
                   <span>{formatTime(duration)}</span>
                 </div>
               </div>
             </div>
 
             {renderedAt && !rendering && (
-              <div className="mt-3 rounded-md bg-emerald-900/40 px-3 py-1 text-xs text-emerald-200">
-                Rendered {ASPECT_RATIOS.length} formats at {renderedAt}
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: "6px 12px",
+                  background: "rgba(74,222,128,0.10)",
+                  color: palette.accent,
+                  border: "1px solid rgba(74,222,128,0.25)",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                Rendered {ASPECT_RATIOS.length} formats at{" "}
+                <span style={{ fontFamily: mono }}>{renderedAt}</span>
               </div>
             )}
           </div>
 
           {/* Timeline */}
-          <div className="border-t border-neutral-800 px-6 py-4">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm font-medium">Cut timeline</div>
-              <div className="text-xs">
-                <span className={overTarget ? "text-red-400" : "text-neutral-300"}>
+          <div
+            style={{
+              borderTop: `1px solid ${palette.border}`,
+              padding: "16px 24px",
+              background: palette.panelBg,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
+              }}
+            >
+              <SectionLabel>Cut timeline</SectionLabel>
+              <div style={{ fontSize: 11, fontFamily: mono }}>
+                <span style={{ color: overTarget ? palette.destructive : palette.strongText }}>
                   {duration.toFixed(1)}s
                 </span>
-                <span className="text-neutral-600"> / {variant.targetSeconds}s target</span>
+                <span style={{ color: palette.tertiary }}>
+                  {" / "}
+                  {variant.targetSeconds}s target
+                </span>
               </div>
             </div>
-            <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
-              <div
-                className={`h-full ${overTarget ? "bg-red-500" : "bg-emerald-500"}`}
-                style={{ width: `${Math.min(100, (duration / variant.targetSeconds) * 100)}%` }}
+            <div style={{ marginBottom: 14 }}>
+              <ProgressBar
+                pct={(duration / variant.targetSeconds) * 100}
+                color={overTarget ? palette.destructive : palette.accent}
               />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {order.map((id, i) => (
                 <div
                   key={id}
@@ -375,34 +672,98 @@ export function ReviewEditor() {
                   onDragStart={() => setDragId(id)}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => onDrop(id)}
-                  className={`group flex max-w-[160px] cursor-grab items-center gap-2 rounded-md border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 active:cursor-grabbing ${
-                    dragId === id ? "opacity-40" : ""
-                  }`}
                   title="Drag to reorder"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    maxWidth: 180,
+                    padding: "6px 8px",
+                    borderRadius: 4,
+                    background: palette.subCardBg,
+                    border: `1px solid ${palette.subBorder2}`,
+                    cursor: "grab",
+                    opacity: dragId === id ? 0.4 : 1,
+                  }}
                 >
-                  <span className="text-[11px] font-semibold text-neutral-500">{i + 1}</span>
-                  <span className="shrink-0 rounded bg-neutral-800 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-400">
-                    {ROLE_LABELS[SENTENCE_BY_ID[id].role]}
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: palette.faint,
+                      fontFamily: mono,
+                    }}
+                  >
+                    {i + 1}
                   </span>
-                  <span className="truncate text-xs text-neutral-200">
+                  <Chip
+                    color={palette.tagGray}
+                    style={{
+                      fontSize: 9,
+                      padding: "1px 5px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {ROLE_LABELS[SENTENCE_BY_ID[id].role]}
+                  </Chip>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: 11,
+                      color: palette.body,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {SENTENCE_BY_ID[id].text}
                   </span>
-                  <span className="shrink-0 text-[10px] text-neutral-500">
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 10,
+                      color: palette.faint,
+                      fontFamily: mono,
+                    }}
+                  >
                     {sentenceDuration(id).toFixed(1)}s
                   </span>
                   <button
-                    onClick={() => toggleSentence(id)}
-                    className="shrink-0 text-neutral-600 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSentence(id);
+                    }}
                     aria-label="Remove clip"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 16,
+                      height: 16,
+                      padding: 0,
+                      background: "transparent",
+                      border: "none",
+                      color: palette.tertiary,
+                      cursor: "pointer",
+                      transition: "color 120ms",
+                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.color =
+                        palette.destructive)
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.color = palette.tertiary)
+                    }
                   >
-                    ✕
+                    <X size={12} />
                   </button>
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-xs text-neutral-600">
+            <div style={{ marginTop: 10, fontSize: 11, color: palette.tertiary }}>
               Drag clips to reorder — the video follows the transcript order.
-            </p>
+            </div>
           </div>
         </section>
       </div>
@@ -417,7 +778,14 @@ function renderWords(text: string, trim: boolean) {
     if (/^\s+$/.test(token)) return token;
     const isFiller = FILLER_WORDS.has(cleanWord(token));
     return isFiller ? (
-      <span key={i} className="text-amber-500/70 line-through decoration-amber-500/70">
+      <span
+        key={i}
+        style={{
+          color: "rgba(251,191,36,0.7)",
+          textDecoration: "line-through",
+          textDecorationColor: "rgba(251,191,36,0.6)",
+        }}
+      >
         {token}
       </span>
     ) : (
@@ -434,23 +802,44 @@ function AspectToggle({
   onChange: (a: AspectRatio) => void;
 }) {
   return (
-    <div className="flex overflow-hidden rounded-md border border-neutral-700">
-      {ASPECT_RATIOS.map((a) => (
-        <button
-          key={a}
-          onClick={() => onChange(a)}
-          className={`px-2.5 py-1.5 text-xs ${
-            a === aspect ? "bg-neutral-700 text-white" : "text-neutral-400 hover:bg-neutral-800"
-          }`}
-        >
-          {a}
-        </button>
-      ))}
+    <div
+      style={{
+        display: "flex",
+        padding: 3,
+        gap: 2,
+        background: palette.pageBg,
+        border: `1px solid ${palette.subBorder}`,
+        borderRadius: 6,
+      }}
+    >
+      {ASPECT_RATIOS.map((a) => {
+        const active = a === aspect;
+        return (
+          <button
+            key={a}
+            onClick={() => onChange(a)}
+            style={{
+              padding: "5px 10px",
+              borderRadius: 4,
+              fontSize: 11,
+              fontWeight: 600,
+              fontFamily: mono,
+              cursor: "pointer",
+              background: active ? "rgba(74,222,128,0.12)" : "transparent",
+              color: active ? palette.accent : palette.secondary,
+              border: `1px solid ${active ? "rgba(74,222,128,0.35)" : "transparent"}`,
+              transition: "color 120ms, background 120ms",
+            }}
+          >
+            {a}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function Check({
+function Toggle({
   label,
   checked,
   onChange,
@@ -460,18 +849,37 @@ function Check({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-1.5 text-neutral-400">
+    <label
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        color: palette.secondary,
+        cursor: "pointer",
+        userSelect: "none",
+      }}
+    >
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-3.5 w-3.5 accent-emerald-500"
+        style={{ width: 12, height: 12, accentColor: palette.accent }}
       />
       {label}
     </label>
   );
 }
 
-function Dot({ className }: { className: string }) {
-  return <span className={`h-2 w-2 rounded-full ${className}`} />;
+function Dot({ color }: { color: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        width: 6,
+        height: 6,
+        borderRadius: "50%",
+        background: color,
+      }}
+    />
+  );
 }

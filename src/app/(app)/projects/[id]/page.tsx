@@ -9,9 +9,20 @@ import {
   renderJobs,
   outputVariants,
 } from "@/db/schema";
-import { Card, PageHeader, StatusBadge, EmptyState } from "@/components/ui";
+import {
+  Card,
+  Chip,
+  EmptyState,
+  PageHero,
+  SectionLabel,
+  StatusChip,
+  SubCard,
+  palette,
+  mono,
+} from "@/components/panel-ui";
 import { RunPipelineButton } from "@/components/run-pipeline-button";
 import { UploadFootage } from "@/components/upload-footage";
+import { statusLabel } from "@/domain/jobState";
 import { edlDuration, type Edl } from "@/domain/edl";
 
 export const dynamic = "force-dynamic";
@@ -64,45 +75,104 @@ export default async function ProjectDetailPage({
 
   return (
     <div>
-      <PageHeader title={project.name} subtitle={project.creatorName ?? undefined}>
-        <UploadFootage projectId={id} />
-      </PageHeader>
+      <PageHero
+        title={project.name}
+        subtitle={project.creatorName ?? undefined}
+        right={<UploadFootage projectId={id} />}
+      />
+
       {project.brief && (
-        <Card className="mb-6">
-          <div className="text-xs uppercase tracking-wide text-neutral-500">Brief</div>
-          <p className="mt-1 text-sm text-neutral-300">{project.brief}</p>
+        <Card style={{ marginBottom: 24 }}>
+          <SectionLabel>Brief</SectionLabel>
+          <p
+            style={{
+              marginTop: 8,
+              marginBottom: 0,
+              fontSize: 13,
+              color: palette.body,
+              lineHeight: 1.6,
+            }}
+          >
+            {project.brief}
+          </p>
         </Card>
       )}
 
-      <h2 className="mb-3 text-sm font-medium text-neutral-300">Source assets</h2>
+      <SectionLabel style={{ marginBottom: 12 }}>Source assets</SectionLabel>
       {assets.length === 0 ? (
-        <EmptyState message="No assets in this project yet." />
+        <EmptyState>No assets in this project yet.</EmptyState>
       ) : (
-        <div className="space-y-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {assets.map((asset) => {
             const assetEdls = edls.filter((e) => e.assetId === asset.id);
             return (
               <Card key={asset.id}>
-                <div className="flex items-start justify-between">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 16,
+                  }}
+                >
                   <div>
-                    <div className="font-medium">{asset.filename}</div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-neutral-500">
-                      <StatusBadge status={asset.status} />
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: palette.titleText,
+                      }}
+                    >
+                      {asset.filename}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        fontSize: 12,
+                        color: palette.tertiary,
+                      }}
+                    >
+                      <StatusChip status={asset.status} label={statusLabel(asset.status)} />
                       {asset.durationSeconds != null && (
-                        <span>{asset.durationSeconds.toFixed(1)}s source</span>
+                        <span style={{ fontFamily: mono }}>
+                          {asset.durationSeconds.toFixed(1)}s source
+                        </span>
                       )}
                     </div>
                     {asset.status === "failed" && asset.errorMessage && (
-                      <p className="mt-2 text-xs text-red-400">
+                      <div
+                        style={{
+                          marginTop: 12,
+                          padding: "10px 12px",
+                          background: "#1a0d0d",
+                          border: "1px solid #2a1a1a",
+                          borderRadius: 4,
+                          fontSize: 12,
+                          color: palette.destructive,
+                          lineHeight: 1.5,
+                        }}
+                      >
                         Failed at {asset.failedStage}: {asset.errorMessage}
-                      </p>
+                      </div>
                     )}
                   </div>
                   <RunPipelineButton assetId={asset.id} />
                 </div>
 
                 {assetEdls.length > 0 && (
-                  <div className="mt-4 space-y-3 border-t border-neutral-800 pt-4">
+                  <div
+                    style={{
+                      marginTop: 18,
+                      paddingTop: 18,
+                      borderTop: `1px solid ${palette.divider}`,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
                     {assetEdls.map((edlRow) => {
                       const edl = JSON.parse(edlRow.payload) as Edl;
                       const edlJobs = jobs.filter((j) => j.edlId === edlRow.id);
@@ -110,37 +180,75 @@ export default async function ProjectDetailPage({
                         edlJobs.some((j) => j.id === o.renderJobId),
                       );
                       return (
-                        <div key={edlRow.id} className="rounded-md bg-neutral-950/50 p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-medium">
-                              {edl.variantId}
+                        <SubCard key={edlRow.id} pad={14}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 12,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: palette.strongText,
+                              }}
+                            >
+                              <span style={{ fontFamily: mono }}>{edl.variantId}</span>
                               {edlRow.approved && (
-                                <span className="ml-2 text-xs text-emerald-400">
-                                  approved
-                                </span>
+                                <Chip color={palette.accent}>Approved</Chip>
                               )}
                             </div>
-                            <div className="text-xs text-neutral-500">
-                              {edl.segments.length} segments ·{" "}
-                              {edlDuration(edl).toFixed(1)}s
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: palette.tertiary,
+                                fontFamily: mono,
+                              }}
+                            >
+                              {edl.segments.length} segments · {edlDuration(edl).toFixed(1)}s
                             </div>
                           </div>
-                          <p className="mt-1 text-sm text-neutral-300">
-                            “{edl.hookText}”
-                          </p>
+                          <div
+                            style={{
+                              marginTop: 8,
+                              fontSize: 13,
+                              color: palette.body,
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            &ldquo;{edl.hookText}&rdquo;
+                          </div>
                           {edlOutputs.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div
+                              style={{
+                                marginTop: 12,
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 8,
+                              }}
+                            >
                               {edlOutputs.map((o) => (
-                                <span
-                                  key={o.id}
-                                  className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300"
-                                >
-                                  {o.aspectRatio} · {o.storageKey.split("/").pop()}
-                                </span>
+                                <Chip key={o.id} color={palette.tagBlue}>
+                                  <span style={{ fontFamily: mono }}>{o.aspectRatio}</span>
+                                  <span
+                                    style={{
+                                      marginLeft: 6,
+                                      color: palette.secondary,
+                                    }}
+                                  >
+                                    {o.storageKey.split("/").pop()}
+                                  </span>
+                                </Chip>
                               ))}
                             </div>
                           )}
-                        </div>
+                        </SubCard>
                       );
                     })}
                   </div>

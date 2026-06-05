@@ -2,7 +2,7 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projects, creators } from "@/db/schema";
-import { Card, PageHeader, EmptyState } from "@/components/ui";
+import { Card, EmptyState, PageHero, palette, mono } from "@/components/panel-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -19,18 +19,38 @@ export default async function ProjectsPage() {
 
   return (
     <div>
-      <PageHeader title="Projects" subtitle="Ad campaigns by creator" />
+      <PageHero title="Projects" subtitle="Ad campaigns by creator" />
       {rows.length === 0 ? (
-        <EmptyState message="No projects yet. Run `npm run db:seed` to load sample data." />
+        <EmptyState>
+          No projects yet. Run <code style={{ fontFamily: mono }}>npm run db:seed</code> to
+          load sample data.
+        </EmptyState>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
           {rows.map((p) => (
-            <Link key={p.id} href={`/projects/${p.id}`}>
-              <Card className="h-full transition hover:border-neutral-700">
-                <div className="font-medium">{p.name}</div>
-                <div className="text-sm text-neutral-400">{p.creatorName}</div>
+            <Link key={p.id} href={`/projects/${p.id}`} style={{ textDecoration: "none" }}>
+              <Card style={{ height: "100%" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: palette.titleText }}>
+                  {p.name}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: palette.secondary }}>
+                  {p.creatorName}
+                </div>
                 {p.brief && (
-                  <p className="mt-2 line-clamp-2 text-sm text-neutral-500">{p.brief}</p>
+                  <div
+                    style={{
+                      marginTop: 12,
+                      fontSize: 13,
+                      color: palette.body,
+                      lineHeight: 1.6,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {p.brief}
+                  </div>
                 )}
               </Card>
             </Link>

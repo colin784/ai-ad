@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { palette } from "./panel-ui";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -8,28 +12,66 @@ const LINKS = [
   { href: "/review", label: "Review editor" },
 ];
 
-/**
- * App shell navigation. Auth is out of scope for the scaffold (internal tool),
- * but this is where an auth-gated user menu would live — the layout is already
- * structured for it.
- */
 export function Nav() {
+  const pathname = usePathname();
   return (
-    <aside className="w-56 shrink-0 border-r border-neutral-800 bg-neutral-900/40 p-4">
-      <div className="mb-6 px-2">
-        <div className="text-sm font-semibold tracking-tight">AI Ad Editor</div>
-        <div className="text-xs text-neutral-500">internal · phase 1</div>
+    <aside
+      style={{
+        width: 224,
+        flexShrink: 0,
+        borderRight: `1px solid ${palette.border}`,
+        background: palette.panelBg,
+        padding: 20,
+      }}
+    >
+      <div style={{ marginBottom: 28, paddingLeft: 6 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: palette.titleText,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          AI Ad Editor
+        </div>
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+            color: palette.faint,
+            marginTop: 4,
+          }}
+        >
+          internal · phase 1
+        </div>
       </div>
-      <nav className="flex flex-col gap-1">
-        {LINKS.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className="rounded-md px-2 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white"
-          >
-            {l.label}
-          </Link>
-        ))}
+      <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {LINKS.map((l) => {
+          const active =
+            l.href === "/" ? pathname === "/" : pathname?.startsWith(l.href);
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              style={{
+                padding: "8px 10px",
+                borderRadius: 4,
+                fontSize: 13,
+                fontWeight: active ? 600 : 500,
+                color: active ? palette.strongText : palette.secondary,
+                background: active ? "rgba(74,222,128,0.08)" : "transparent",
+                border: `1px solid ${active ? "rgba(74,222,128,0.25)" : "transparent"}`,
+                textDecoration: "none",
+                transition: "color 120ms, background 120ms, border-color 120ms",
+              }}
+            >
+              {l.label}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );

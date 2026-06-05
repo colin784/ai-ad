@@ -2,7 +2,16 @@ import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { sourceAssets, projects } from "@/db/schema";
-import { Card, PageHeader, StatusBadge, EmptyState } from "@/components/ui";
+import { statusLabel } from "@/domain/jobState";
+import {
+  Card,
+  EmptyState,
+  PageHero,
+  SectionLabel,
+  StatusChip,
+  palette,
+  mono,
+} from "@/components/panel-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -22,38 +31,65 @@ export default async function AssetsPage() {
 
   return (
     <div>
-      <PageHeader title="Assets" subtitle="All source footage and its pipeline status" />
+      <PageHero title="Assets" subtitle="All source footage and its pipeline status" />
       {rows.length === 0 ? (
-        <EmptyState message="No assets yet. Run `npm run db:seed` to load sample data." />
+        <EmptyState>
+          No assets yet. Run <code style={{ fontFamily: mono }}>npm run db:seed</code> to
+          load sample data.
+        </EmptyState>
       ) : (
-        <Card>
-          <table className="w-full text-sm">
+        <Card pad={0}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-neutral-500">
-                <th className="pb-2 font-medium">File</th>
-                <th className="pb-2 font-medium">Project</th>
-                <th className="pb-2 font-medium">Duration</th>
-                <th className="pb-2 font-medium">Status</th>
+              <tr>
+                {["File", "Project", "Duration", "Status"].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: "left",
+                      padding: "14px 20px",
+                      borderBottom: `1px solid ${palette.divider}`,
+                    }}
+                  >
+                    <SectionLabel>{h}</SectionLabel>
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800">
-              {rows.map((a) => (
-                <tr key={a.id}>
-                  <td className="py-2">{a.filename}</td>
-                  <td className="py-2 text-neutral-400">
+            <tbody>
+              {rows.map((a, i) => (
+                <tr
+                  key={a.id}
+                  style={{
+                    borderTop: i === 0 ? "none" : `1px solid ${palette.divider}`,
+                  }}
+                >
+                  <td style={{ padding: "12px 20px", color: palette.strongText }}>
+                    {a.filename}
+                  </td>
+                  <td style={{ padding: "12px 20px", color: palette.secondary }}>
                     {a.projectId ? (
-                      <Link href={`/projects/${a.projectId}`} className="hover:text-white">
+                      <Link
+                        href={`/projects/${a.projectId}`}
+                        style={{ color: palette.secondary, textDecoration: "none" }}
+                      >
                         {a.projectName}
                       </Link>
                     ) : (
                       "—"
                     )}
                   </td>
-                  <td className="py-2 text-neutral-400">
+                  <td
+                    style={{
+                      padding: "12px 20px",
+                      color: palette.secondary,
+                      fontFamily: mono,
+                    }}
+                  >
                     {a.durationSeconds != null ? `${a.durationSeconds.toFixed(1)}s` : "—"}
                   </td>
-                  <td className="py-2">
-                    <StatusBadge status={a.status} />
+                  <td style={{ padding: "12px 20px" }}>
+                    <StatusChip status={a.status} label={statusLabel(a.status)} />
                   </td>
                 </tr>
               ))}

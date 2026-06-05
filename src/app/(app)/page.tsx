@@ -3,7 +3,16 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { creators, projects, sourceAssets } from "@/db/schema";
 import { PIPELINE_STAGES, statusLabel } from "@/domain/jobState";
-import { Card, PageHeader, StatusBadge, EmptyState } from "@/components/ui";
+import {
+  Card,
+  EmptyState,
+  PageHero,
+  SectionLabel,
+  Stat,
+  StatusChip,
+  palette,
+  mono,
+} from "@/components/panel-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -22,51 +31,89 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHero
         title="Dashboard"
         subtitle="Transcript-driven ad editor · Phase 1 foundation"
       />
 
-      <div className="mb-8 grid grid-cols-3 gap-4">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
         {stats.map((s) => (
-          <Link key={s.label} href={s.href}>
-            <Card className="transition hover:border-neutral-700">
-              <div className="text-3xl font-semibold">{s.value}</div>
-              <div className="mt-1 text-sm text-neutral-400">{s.label}</div>
+          <Link key={s.label} href={s.href} style={{ textDecoration: "none" }}>
+            <Card>
+              <Stat label={s.label} value={s.value} />
             </Card>
           </Link>
         ))}
       </div>
 
-      <Card className="mb-8">
-        <div className="mb-3 text-sm font-medium text-neutral-300">Pipeline</div>
-        <div className="flex flex-wrap items-center gap-2">
+      <Card style={{ marginBottom: 24 }}>
+        <SectionLabel>Pipeline</SectionLabel>
+        <div
+          style={{
+            marginTop: 12,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
           {PIPELINE_STAGES.map((stage, i) => (
-            <div key={stage} className="flex items-center gap-2">
-              <span className="rounded-md bg-neutral-800 px-2 py-1 text-xs text-neutral-300">
+            <div key={stage} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  background: "#0a0a0a",
+                  border: `1px solid ${palette.subBorder}`,
+                  color: palette.body,
+                  padding: "4px 10px",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
                 {statusLabel(stage)}
               </span>
               {i < PIPELINE_STAGES.length - 1 && (
-                <span className="text-neutral-600">→</span>
+                <span style={{ color: palette.placeholder, fontFamily: mono }}>{"→"}</span>
               )}
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-neutral-500">
+        <div style={{ marginTop: 14, fontSize: 12, color: palette.tertiary }}>
           Human approval is required before export — no fully-automatic publish.
-        </p>
+        </div>
       </Card>
 
-      <h2 className="mb-3 text-sm font-medium text-neutral-300">Recent assets</h2>
+      <SectionLabel style={{ marginBottom: 10 }}>Recent assets</SectionLabel>
       {assetRows.length === 0 ? (
-        <EmptyState message="No assets yet. Run `npm run db:seed` to load sample data, then open a project." />
+        <EmptyState>
+          No assets yet. Run <code style={{ fontFamily: mono }}>npm run db:seed</code> to load
+          sample data, then open a project.
+        </EmptyState>
       ) : (
-        <Card>
-          <ul className="divide-y divide-neutral-800">
-            {assetRows.map((a) => (
-              <li key={a.id} className="flex items-center justify-between py-2">
-                <span className="text-sm">{a.filename}</span>
-                <StatusBadge status={a.status} />
+        <Card pad={0}>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {assetRows.map((a, i) => (
+              <li
+                key={a.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px 20px",
+                  borderTop: i === 0 ? "none" : `1px solid ${palette.divider}`,
+                }}
+              >
+                <span style={{ fontSize: 13, color: palette.strongText }}>
+                  {a.filename}
+                </span>
+                <StatusChip status={a.status} label={statusLabel(a.status)} />
               </li>
             ))}
           </ul>

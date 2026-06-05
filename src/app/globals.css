@@ -2,8 +2,51 @@
 
 :root {
   color-scheme: dark;
+  --font-inter:
+    var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-jetbrains: var(--font-jetbrains), "JetBrains Mono", monospace;
 }
 
+html,
 body {
-  @apply bg-neutral-950 text-neutral-100 antialiased;
+  background: #0a0a0a;
+  color: #e0e0e0;
+  font-family: var(--font-inter);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Anything labelled with the mono CSS family resolves through next/font. */
+:root {
+  font-family: var(--font-inter);
+}
+
+/* Scrollbar — subtle, on-system aesthetic */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a2a;
+}
+
+/* Used by Loader2 from lucide-react throughout the UI. */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

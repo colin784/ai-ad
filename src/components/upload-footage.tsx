@@ -2,6 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { SecondaryButton, palette } from "./panel-ui";
 
 /**
  * Upload source footage for a project. Asks the server for a direct upload
@@ -13,14 +16,12 @@ export function UploadFootage({ projectId }: { projectId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setBusy(true);
-    setError(null);
-    setStatus(`Preparing ${file.name}…`);
+    setStatus(`Preparing ${file.name}`);
     try {
       const res = await fetch("/api/uploads", {
         method: "POST",
@@ -35,7 +36,7 @@ export function UploadFootage({ projectId }: { projectId: string }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Upload init failed (${res.status})`);
 
-      setStatus(`Uploading ${file.name}…`);
+      setStatus(`Uploading ${file.name}`);
       const put = await fetch(data.upload.url, {
         method: data.upload.method,
         headers: data.upload.headers,
@@ -43,35 +44,36 @@ export function UploadFootage({ projectId }: { projectId: string }) {
       });
       if (!put.ok) throw new Error(`Upload failed (${put.status})`);
 
-      setStatus(`Uploaded ${file.name}`);
+      toast.success("Footage uploaded", { description: file.name });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus(null);
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error("Couldn't upload footage", { description: message });
     } finally {
       setBusy(false);
+      setStatus(null);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
       <input
         ref={inputRef}
         type="file"
         accept="video/*,audio/*"
         onChange={onPick}
-        className="hidden"
+        style={{ display: "none" }}
       />
-      <button
-        onClick={() => inputRef.current?.click()}
-        disabled={busy}
-        className="rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-60"
-      >
-        {busy ? "Uploading…" : "Upload footage"}
-      </button>
-      {status && <span className="text-xs text-neutral-400">{status}</span>}
-      {error && <span className="text-xs text-red-400">{error}</span>}
+      <SecondaryButton onClick={() => inputRef.current?.click()} disabled={busy}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {busy && <Loader2 size={12} className="animate-spin" />}
+          {busy ? "Uploading" : "Upload footage"}
+        </span>
+      </SecondaryButton>
+      {status && (
+        <span style={{ fontSize: 11, color: palette.tertiary }}>{status}</span>
+      )}
     </div>
   );
 }

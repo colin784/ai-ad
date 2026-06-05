@@ -1,16 +1,18 @@
 import { Nav } from "@/components/nav";
 
-// Layout for the main app shell (dashboard, creators, projects, assets).
-// The /review editor lives outside this group so it can render full-bleed.
+// App shell layout: dashboard, creators, projects, assets. /review renders
+// full-bleed and lives outside this group.
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen">
+    <div style={{ display: "flex", minHeight: "100vh", background: "#0a0a0a" }}>
       <Nav />
-      <main className="flex-1 p-8">{children}</main>
+      <main style={{ flex: 1, padding: "32px 40px", maxWidth: 1280 }}>
+        {children}
+      </main>
     </div>
   );
 }
