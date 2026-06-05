@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AspectRatioSchema } from "./edl";
+import { DEFAULT_INTEGRATION_SECONDS, QR_RULES } from "./playbook";
 
 /**
  * Structured creative brief — modeled on real sponsor briefs (Panel/creator
@@ -14,13 +15,15 @@ import { AspectRatioSchema } from "./edl";
  */
 
 export const PlacementSchema = z.object({
-  /** Ad must appear within the first N% of the video (e.g. 10, 30). */
+  /** Ad must appear within the first N% of the host video (e.g. 10, 30). */
   appearWithinPercent: z.number().optional(),
   /** QR code must stay on screen at least N seconds. */
   qrMinSeconds: z.number().optional(),
-  /** Bring the QR in N seconds into the ad (not instantly). */
+  /** Bring the QR in N seconds into the ad (absolute). */
   qrDelaySeconds: z.number().optional(),
-  qrPosition: z.string().optional(), // e.g. "bottom corner"
+  /** Bring the QR in at this % of the integration length (relative). */
+  qrAppearAtPercent: z.number().optional(),
+  qrPosition: z.string().optional(), // e.g. "top-right"
   endCardRequired: z.boolean().optional(),
 });
 export type Placement = z.infer<typeof PlacementSchema>;
@@ -63,7 +66,13 @@ export const BriefSchema = z.object({
   sellingPoints: z.array(z.string()).default([]),
   primaryHook: z.string().optional(),
   cta: z.string().optional(),
-  placement: PlacementSchema.optional(),
+  // Default QR placement reflects the learned norm: bring the QR in around
+  // the 50% mark, hold ≥20s, top-right.
+  placement: PlacementSchema.default({
+    qrMinSeconds: QR_RULES.minHoldSeconds,
+    qrAppearAtPercent: QR_RULES.appearAtPercent,
+    qrPosition: QR_RULES.defaultPosition,
+  }),
   description: DescriptionSchema.optional(),
   compliance: ComplianceSchema.optional(),
   script: BriefScriptSchema.optional(),
@@ -72,7 +81,7 @@ export const BriefSchema = z.object({
   tone: z.string().optional(),
   // Rendering / EDL parameters. Defaults target the primary format: long-form
   // YouTube brand integrations — 16:9, ~60s, dropped into a host video.
-  targetSeconds: z.number().positive().default(60),
+  targetSeconds: z.number().positive().default(DEFAULT_INTEGRATION_SECONDS),
   aspectRatios: z.array(AspectRatioSchema).min(1).default(["16:9"]),
   variantCount: z.number().int().positive().default(3),
 });

@@ -1,5 +1,5 @@
 import type { AnalyzeInput, LlmProvider } from "../types";
-import { EdlSchema, type Edl } from "@/domain/edl";
+import { EdlSchema, type Edl, type SegmentRole } from "@/domain/edl";
 
 /**
  * Deterministic fake LLM analysis. Instead of calling a model, it picks the
@@ -43,12 +43,15 @@ export const mockLlm: LlmProvider = {
         sourceStart: segs[idx].start,
         sourceEnd: segs[idx].end,
         transcript: segs[idx].text,
+        // Tag a rough beat role: first kept span is the hook, rest are benefit.
+        role: (idx === hookIdx ? "hook" : "benefit") as SegmentRole,
       }));
       if (ctaSeg) {
         segments.push({
           sourceStart: ctaSeg.start,
           sourceEnd: ctaSeg.end,
           transcript: ctaSeg.text,
+          role: "cta" as SegmentRole,
         });
       }
 
@@ -58,7 +61,8 @@ export const mockLlm: LlmProvider = {
         aspectRatios: brief.aspectRatios,
         hookText: segs[hookIdx].text,
         segments,
-        captions: "burn_in",
+        // Long-form YouTube integrations don't burn in captions (clean screen).
+        captions: "none",
         cta: ctaSeg ? "Link in description" : undefined,
       } satisfies Partial<Edl>);
     };

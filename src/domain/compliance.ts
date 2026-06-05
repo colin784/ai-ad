@@ -1,5 +1,6 @@
 import { edlDuration, type Edl } from "./edl";
 import type { Brief } from "./brief";
+import { INCOME_HEDGE_PHRASES } from "./playbook";
 
 /**
  * Deterministic compliance checks over a generated EDL's spoken copy.
@@ -54,6 +55,10 @@ export function findForbiddenTerms(text: string, terms: string[]): string[] {
 const CTA_CUE =
   /(link in (the |my )?(description|bio)|scan( the)? (qr|code)|sign ?up|click the link|in (the |my )?description|promo code|use code)/i;
 
+// An income/earnings claim: a dollar figure, "$X a day", or "make/earn $X".
+const INCOME_CLAIM =
+  /(\$\s?\d[\d,]*(\.\d+)?)|(\b\d+\s*(dollars|bucks)\b)|(\b(make|earn)s?\s+\$?\d)/i;
+
 export function checkEdlCompliance(edl: Edl, brief: Brief): ComplianceReport {
   const copy = edlCopy(edl);
   const checks: ComplianceCheck[] = [];
@@ -106,7 +111,23 @@ export function checkEdlCompliance(edl: Edl, brief: Brief): ComplianceReport {
     });
   }
 
-  // 5. Required disclaimers — informational (these belong in the description,
+  // 5. Income/earnings claims must be hedged (warning). The corpus' highest
+  // compliance risk was an unhedged "$1,000 in two days" claim.
+  if (INCOME_CLAIM.test(copy)) {
+    const lower = copy.toLowerCase();
+    const hedged = INCOME_HEDGE_PHRASES.some((h) => lower.includes(h));
+    checks.push({
+      id: "income-hedge",
+      label: "Income claims hedged",
+      ok: hedged,
+      severity: "warn",
+      detail: hedged
+        ? undefined
+        : "income/earnings claim without a hedge — add 'up to', 'if you qualify', or 'maybe even more'",
+    });
+  }
+
+  // 6. Required disclaimers — informational (these belong in the description,
   // not necessarily the spoken cut).
   const disclaimers = compliance?.requiredDisclaimers ?? [];
   if (disclaimers.length) {

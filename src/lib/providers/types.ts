@@ -48,8 +48,9 @@ export interface LlmProvider {
 export interface RenderOverlays {
   qr?: {
     minSeconds?: number; // keep on screen at least this long
-    delaySeconds?: number; // bring it in this many seconds into the cut
-    position?: string; // e.g. "bottom-right"
+    delaySeconds?: number; // bring it in this many seconds into the cut (absolute)
+    appearAtPercent?: number; // …or at this % of the cut length (relative)
+    position?: string; // e.g. "top-right"
   };
   endCardRequired?: boolean;
   promoCode?: string;

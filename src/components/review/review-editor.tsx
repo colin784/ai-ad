@@ -6,6 +6,7 @@ import {
   ASPECT_RATIOS,
   FILLER_WORDS,
   PROJECT,
+  ROLE_LABELS,
   SENTENCE_BY_ID,
   TRANSCRIPT,
   VARIANTS,
@@ -136,6 +137,10 @@ export function ReviewEditor() {
   const elapsed = order.slice(0, playIndex).reduce((s, id) => s + sentenceDuration(id), 0);
   const captionId = order[playIndex] ?? order[0];
   const captionText = captionId ? SENTENCE_BY_ID[captionId].text : "";
+  const currentRole = captionId ? SENTENCE_BY_ID[captionId].role : undefined;
+  // QR appears around the 50% mark and holds to the end (learned norm).
+  // At rest it's shown so the graphic is visible; during playback it appears on cue.
+  const qrShown = duration > 0 && (!playing || elapsed / duration >= PROJECT.qrAppearPercent);
 
   return (
     <div className="flex h-[calc(100vh-1px)] flex-col">
@@ -247,19 +252,25 @@ export function ReviewEditor() {
                       : "border-transparent opacity-45 hover:opacity-80"
                   } ${isPlaying ? "ring-1 ring-emerald-400/60" : ""}`}
                 >
-                  <span className="mt-0.5 w-12 shrink-0 font-mono text-[11px] text-neutral-500">
-                    {formatTime(s.start)}
+                  <span className="mt-0.5 flex w-20 shrink-0 flex-col gap-1">
+                    <span className="font-mono text-[11px] text-neutral-500">
+                      {formatTime(s.start)}
+                    </span>
+                    <span
+                      className={`rounded px-1 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide ${
+                        isHook
+                          ? "bg-amber-500/20 text-amber-300"
+                          : "bg-neutral-800 text-neutral-400"
+                      }`}
+                    >
+                      {ROLE_LABELS[s.role]}
+                    </span>
                   </span>
                   <span
                     className={`text-sm leading-relaxed ${
                       included ? "text-neutral-100" : "text-neutral-500 line-through"
                     }`}
                   >
-                    {isHook && (
-                      <span className="mr-2 rounded bg-amber-500/20 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                        Hook
-                      </span>
-                    )}
                     {renderWords(s.text, trimFillers && included)}
                   </span>
                   <span className="ml-auto self-center text-[11px] text-neutral-600 opacity-0 group-hover:opacity-100">
@@ -281,15 +292,28 @@ export function ReviewEditor() {
             >
               {/* gradient backdrop */}
               <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 via-neutral-900 to-indigo-500/20" />
-              {/* hook overlay */}
-              <div className="absolute inset-x-0 top-0 p-4">
-                <p className="text-balance text-center text-lg font-extrabold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                  {SENTENCE_BY_ID[variant.hookId].text}
-                </p>
+              {/* current beat chip (editor overlay — not burned into the video) */}
+              <div className="absolute left-0 top-0 p-3">
+                <span className="rounded bg-black/50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/90 backdrop-blur">
+                  {currentRole ? ROLE_LABELS[currentRole] : "—"}
+                </span>
               </div>
-              {/* burned-in caption */}
-              <div className="absolute inset-x-0 bottom-10 px-4">
-                <p className="mx-auto max-w-[90%] text-balance text-center text-sm font-bold text-white drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">
+              {/* QR code overlay — the one persistent on-screen graphic */}
+              {qrShown && (
+                <div className="absolute right-0 top-0 flex flex-col items-center gap-1 p-3">
+                  <div className="grid h-14 w-14 grid-cols-3 grid-rows-3 gap-0.5 rounded bg-white p-1 shadow-lg">
+                    {[1, 1, 0, 1, 0, 1, 0, 1, 1].map((b, i) => (
+                      <div key={i} className={b ? "bg-black" : "bg-white"} />
+                    ))}
+                  </div>
+                  <span className="rounded bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-white/90">
+                    Scan
+                  </span>
+                </div>
+              )}
+              {/* spoken line — editor reference only; captions are NOT burned in */}
+              <div className="absolute inset-x-0 bottom-12 px-4">
+                <p className="mx-auto max-w-[90%] text-center text-xs italic text-white/55">
                   {captionText}
                 </p>
               </div>
@@ -357,6 +381,9 @@ export function ReviewEditor() {
                   title="Drag to reorder"
                 >
                   <span className="text-[11px] font-semibold text-neutral-500">{i + 1}</span>
+                  <span className="shrink-0 rounded bg-neutral-800 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-400">
+                    {ROLE_LABELS[SENTENCE_BY_ID[id].role]}
+                  </span>
                   <span className="truncate text-xs text-neutral-200">
                     {SENTENCE_BY_ID[id].text}
                   </span>

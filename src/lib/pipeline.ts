@@ -24,7 +24,12 @@ function overlaysFromBrief(brief: Brief): RenderOverlays {
   const p = brief.placement;
   return {
     qr: p
-      ? { minSeconds: p.qrMinSeconds, delaySeconds: p.qrDelaySeconds, position: p.qrPosition }
+      ? {
+          minSeconds: p.qrMinSeconds,
+          delaySeconds: p.qrDelaySeconds,
+          appearAtPercent: p.qrAppearAtPercent,
+          position: p.qrPosition,
+        }
       : undefined,
     endCardRequired: p?.endCardRequired,
     promoCode: brief.description?.promoCode,

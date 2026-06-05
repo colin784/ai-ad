@@ -12,11 +12,34 @@ export const ASPECT_RATIOS = ["9:16", "1:1", "16:9"] as const;
 export const AspectRatioSchema = z.enum(ASPECT_RATIOS);
 export type AspectRatio = z.infer<typeof AspectRatioSchema>;
 
+// Beat roles observed across real long-form YouTube integrations (see
+// src/domain/playbook.ts). Tagging each kept span with its role lets the
+// renderer, compliance checks, and editor reason about structure.
+export const SEGMENT_ROLES = [
+  "segue_in",
+  "hook",
+  "problem",
+  "product_intro",
+  "how_it_works",
+  "benefit",
+  "proof",
+  "social_proof",
+  "objection_handling",
+  "cta",
+  "promo_code",
+  "disclaimer",
+  "segue_out",
+  "other",
+] as const;
+export const SegmentRoleSchema = z.enum(SEGMENT_ROLES);
+export type SegmentRole = z.infer<typeof SegmentRoleSchema>;
+
 export const SegmentSchema = z
   .object({
     sourceStart: z.number().nonnegative(),
     sourceEnd: z.number().positive(),
     transcript: z.string(),
+    role: SegmentRoleSchema.optional(),
   })
   .refine((s) => s.sourceEnd > s.sourceStart, {
     message: "sourceEnd must be greater than sourceStart",
@@ -31,7 +54,9 @@ export const EdlSchema = z
     aspectRatios: z.array(AspectRatioSchema).min(1),
     hookText: z.string().min(1),
     segments: z.array(SegmentSchema).min(1),
-    captions: z.enum(["burn_in", "overlay", "none"]).default("burn_in"),
+    // Default "none": burned-in captions were absent in every analyzed
+    // long-form YouTube integration (clean screen for QR + app graphics).
+    captions: z.enum(["burn_in", "overlay", "none"]).default("none"),
     cta: z.string().optional(),
   })
   .superRefine((edl, ctx) => {

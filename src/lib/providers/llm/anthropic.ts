@@ -3,11 +3,13 @@ import { z } from "zod";
 import {
   EdlSchema,
   ASPECT_RATIOS,
+  SEGMENT_ROLES,
   type Edl,
   type TranscriptContent,
 } from "@/domain/edl";
 import { renderBriefForPrompt, type Brief } from "@/domain/brief";
 import { checkEdlCompliance, complianceErrors } from "@/domain/compliance";
+import { renderPlaybookForPrompt } from "@/domain/playbook";
 import type { AnalyzeInput, LlmProvider } from "../types";
 
 /**
@@ -52,6 +54,7 @@ const LlmResponseSchema = z.object({
               sourceStart: z.number(),
               sourceEnd: z.number(),
               transcript: z.string(),
+              role: z.enum(SEGMENT_ROLES).nullable(),
             }),
           )
           .min(1),
@@ -92,8 +95,9 @@ const OUTPUT_JSON_SCHEMA = {
                 sourceStart: { type: "number" },
                 sourceEnd: { type: "number" },
                 transcript: { type: "string" },
+                role: { type: ["string", "null"], enum: [...SEGMENT_ROLES, null] },
               },
-              required: ["sourceStart", "sourceEnd", "transcript"],
+              required: ["sourceStart", "sourceEnd", "transcript", "role"],
             },
           },
           captions: { type: "string", enum: ["burn_in", "overlay", "none"] },
@@ -125,7 +129,7 @@ Rules for every variant you produce:
 - Segments must NOT overlap in source time. When ordered by sourceStart, each segment must start at or after the previous one ends.
 - Keep the total kept duration at or under the brief's target length (a little under is fine).
 - Put the strongest hook segment first; you may then reorder later segments for narrative flow, as long as they don't overlap.
-- "captions" should normally be "burn_in".
+- Tag EVERY segment with its "role" (segue_in, hook, product_intro, how_it_works, benefit, proof, objection_handling, cta, promo_code, segue_out, …). Follow the HOUSE STYLE beat order below.
 - Set "cta" to a short call-to-action if the footage supports one, otherwise null.
 - Produce the number of distinct variants the brief requests, each with a different hook/angle. Give each a short variantId like "hook-a", "hook-b".
 
@@ -133,7 +137,9 @@ COMPLIANCE — non-negotiable:
 - Obey every rule in the brief's COMPLIANCE section exactly.
 - NEVER use any FORBIDDEN TERM listed in the brief, in the hook, any segment, or the CTA.
 - Cover the key selling points and include the required call to action (and promo code, if given).
-- A variant that violates compliance will be rejected and you'll be asked to redo it — get it right the first time.`;
+- A variant that violates compliance will be rejected and you'll be asked to redo it — get it right the first time.
+
+${renderPlaybookForPrompt()}`;
 
 let cachedClient: Anthropic | null = null;
 function client(): Anthropic {
@@ -185,7 +191,12 @@ function toEdl(v: z.infer<typeof LlmResponseSchema>["variants"][number]): Edl {
     targetSeconds: v.targetSeconds,
     aspectRatios: v.aspectRatios,
     hookText: v.hookText,
-    segments: v.segments,
+    segments: v.segments.map((s) => ({
+      sourceStart: s.sourceStart,
+      sourceEnd: s.sourceEnd,
+      transcript: s.transcript,
+      role: s.role ?? undefined, // model returns null when unsure
+    })),
     captions: v.captions,
     cta: v.cta ?? undefined,
   });
