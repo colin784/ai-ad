@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Pause, Play, X } from "lucide-react";
 import {
@@ -24,6 +24,7 @@ import {
   palette,
   mono,
 } from "@/components/panel-ui";
+import { deriveCues, type OverlayCue, type OverlayPosition } from "@/domain/graphics";
 
 type Status = "approved" | "rejected" | null;
 type VariantState = { order: string[]; status: Status };
@@ -147,8 +148,28 @@ export function ReviewEditor() {
   const captionId = order[playIndex] ?? order[0];
   const captionText = captionId ? SENTENCE_BY_ID[captionId].text : "";
   const currentRole = captionId ? SENTENCE_BY_ID[captionId].role : undefined;
-  // QR appears around the 50% mark and holds to the end (learned norm).
-  const qrShown = duration > 0 && (!playing || elapsed / duration >= PROJECT.qrAppearPercent);
+
+  // Keyword-triggered graphic overlays (spec §2–§4), derived from the cut.
+  const cues = useMemo(
+    () =>
+      deriveCues(
+        order.map((id) => ({
+          transcript: SENTENCE_BY_ID[id].text,
+          durationSeconds: sentenceDuration(id),
+        })),
+        { brandName: PROJECT.brand },
+      ),
+    [order],
+  );
+  // Active when the playhead is inside the cue; at rest, show all so the graphics
+  // are visible. One per asset (first wins) to avoid stacking duplicates.
+  const activeCues = useMemo(() => {
+    const within = cues.filter(
+      (c) => !playing || (elapsed >= c.startSeconds && elapsed <= c.endSeconds),
+    );
+    const seen = new Set<string>();
+    return within.filter((c) => (seen.has(c.asset) ? false : (seen.add(c.asset), true)));
+  }, [cues, playing, elapsed]);
 
   return (
     <div
@@ -473,52 +494,10 @@ export function ReviewEditor() {
                   {currentRole ? ROLE_LABELS[currentRole] : "—"}
                 </Chip>
               </div>
-              {/* QR code overlay — the one persistent on-screen graphic */}
-              {qrShown && (
-                <div
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: 0,
-                    padding: 12,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3,1fr)",
-                      gridTemplateRows: "repeat(3,1fr)",
-                      gap: 2,
-                      height: 56,
-                      width: 56,
-                      padding: 4,
-                      background: "#fff",
-                      borderRadius: 4,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                    }}
-                  >
-                    {[1, 1, 0, 1, 0, 1, 0, 1, 1].map((b, i) => (
-                      <div key={i} style={{ background: b ? "#000" : "#fff" }} />
-                    ))}
-                  </div>
-                  <span
-                    style={{
-                      padding: "2px 6px",
-                      background: "rgba(0,0,0,0.55)",
-                      color: "#fff",
-                      fontSize: 9,
-                      fontWeight: 600,
-                      borderRadius: 3,
-                    }}
-                  >
-                    Scan
-                  </span>
-                </div>
-              )}
+              {/* Keyword-triggered graphic overlays (spec §2–§4) */}
+              {activeCues.map((cue) => (
+                <CueOverlay key={cue.asset + cue.startSeconds} cue={cue} />
+              ))}
               {/* spoken line — editor reference only; captions NOT burned in */}
               <div
                 style={{
@@ -762,11 +741,103 @@ export function ReviewEditor() {
               ))}
             </div>
             <div style={{ marginTop: 10, fontSize: 11, color: palette.tertiary }}>
-              Drag clips to reorder — the video follows the transcript order.
+              Drag clips to reorder — the video follows the transcript order. Graphics are
+              keyword-triggered and placed in negative space (QR drops to bottom-right or hides
+              when the creator&rsquo;s face is in the zone — face detection is a follow-up).
             </div>
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+// ---- Keyword-triggered graphic overlays (spec §2–§4) ----
+
+function cuePosition(position: OverlayPosition): CSSProperties {
+  switch (position) {
+    case "top-right":
+      return { top: 12, right: 12 };
+    case "bottom-right":
+      return { bottom: 48, right: 12 };
+    case "bottom-center":
+      return { left: 0, right: 0, bottom: 50, display: "flex", justifyContent: "center" };
+    case "left":
+      return { left: 12, top: "50%", transform: "translateY(-50%)" };
+    case "center-left":
+      return { left: 12, top: "42%", transform: "translateY(-50%)" };
+    default:
+      return { display: "none" };
+  }
+}
+
+function CueOverlay({ cue }: { cue: OverlayCue }) {
+  const base: CSSProperties = { position: "absolute", ...cuePosition(cue.position) };
+
+  if (cue.asset === "qr") {
+    return (
+      <div
+        style={{ ...base, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3,1fr)",
+            gridTemplateRows: "repeat(3,1fr)",
+            gap: 2,
+            height: 56,
+            width: 56,
+            padding: 4,
+            background: "#fff",
+            borderRadius: 4,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+          }}
+        >
+          {[1, 1, 0, 1, 0, 1, 0, 1, 1].map((b, i) => (
+            <div key={i} style={{ background: b ? "#000" : "#fff" }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (cue.asset === "cta_text") {
+    return (
+      <div style={base}>
+        <span
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#fff",
+            letterSpacing: "0.02em",
+            textShadow:
+              "-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000",
+          }}
+        >
+          LINK IN DESC
+        </span>
+      </div>
+    );
+  }
+
+  // Supporting graphics (PayPal receipt / app browse / cashout UI) — left-anchored
+  // placeholder cards balancing the QR on the right.
+  return (
+    <div
+      style={{
+        ...base,
+        width: 96,
+        padding: "8px 10px",
+        background: "rgba(255,255,255,0.96)",
+        color: "#0a0a0a",
+        borderRadius: 6,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+        fontSize: 10,
+        fontWeight: 700,
+        lineHeight: 1.3,
+      }}
+    >
+      {cue.label}
     </div>
   );
 }

@@ -277,4 +277,48 @@ export const anthropicLlm: LlmProvider = {
 
     throw new Error(`Anthropic analysis failed to produce a valid EDL: ${lastError}`);
   },
+
+  // Spec §6: rewrite the read into a tighter, safer core pitch at a strict
+  // target length — for the audio-replacement / lip-sync pipeline.
+  async rewriteScript({ transcript, brief, targetSeconds }) {
+    const sys = `You rewrite a creator's sponsored read into a tighter, compliance-safe voiceover script.
+
+Rules:
+- Hard target: about ${targetSeconds} seconds when read aloud (~${Math.round(targetSeconds * 2.6)} words). Be concise.
+- REMOVE skepticism-addressing dialogue ("you might feel like this is too good to be true", "let me break it down").
+- REMOVE specific high-dollar income claims; keep only hedged, modest framing ("up to", "maybe even more").
+- Keep the brand, the core benefit, the CTA, and the promo code if present.
+- Obey the brief's compliance rules and forbidden terms.
+Return JSON: { "script": string, "estimatedSeconds": number }.`;
+
+    const user = `${renderBriefForPrompt(brief)}\n\nORIGINAL TRANSCRIPT:\n${renderTranscript(transcript)}`;
+
+    const message = await client().beta.messages.create({
+      model: process.env.LLM_MODEL ?? DEFAULT_MODEL,
+      max_tokens: 4000,
+      betas: [STRUCTURED_OUTPUTS_BETA],
+      thinking: { type: "adaptive" },
+      system: [{ type: "text", text: sys, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: user }],
+      output_format: {
+        type: "json_schema",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            script: { type: "string" },
+            estimatedSeconds: { type: "number" },
+          },
+          required: ["script", "estimatedSeconds"],
+        },
+      },
+    });
+
+    const jsonText = extractJsonText(message.content);
+    if (!jsonText) throw new Error("rewriteScript: model returned no JSON");
+    const parsed = z
+      .object({ script: z.string(), estimatedSeconds: z.number() })
+      .parse(JSON.parse(jsonText));
+    return parsed;
+  },
 };

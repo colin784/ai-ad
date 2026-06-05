@@ -1,6 +1,22 @@
 import { z } from "zod";
 import { AspectRatioSchema } from "./edl";
 import { DEFAULT_INTEGRATION_SECONDS, QR_RULES } from "./playbook";
+import { RENDER_SPEC } from "./graphics";
+
+// Output encoding + silence rules (spec §1, §5).
+export const RenderConfigSchema = z.object({
+  width: z.number().default(RENDER_SPEC.outputWidth),
+  height: z.number().default(RENDER_SPEC.outputHeight),
+  codec: z.enum(["hevc", "h264"]).default(RENDER_SPEC.codec),
+  silencePaddingMs: z.number().default(RENDER_SPEC.silencePaddingMs),
+});
+export type RenderConfigInput = z.infer<typeof RenderConfigSchema>;
+
+// Opt-in audio-replacement / lip-sync pipeline (spec §6 / Pair 4).
+export const RewriteSchema = z.object({
+  enabled: z.boolean().default(false),
+  targetSeconds: z.number().default(45),
+});
 
 /**
  * Structured creative brief — modeled on real sponsor briefs (Panel/creator
@@ -84,6 +100,10 @@ export const BriefSchema = z.object({
   targetSeconds: z.number().positive().default(DEFAULT_INTEGRATION_SECONDS),
   aspectRatios: z.array(AspectRatioSchema).min(1).default(["16:9"]),
   variantCount: z.number().int().positive().default(3),
+  // Output encoding (1080p HEVC default) + silence buffer.
+  render: RenderConfigSchema.default({}),
+  // Audio-replacement / lip-sync mode (off by default).
+  rewrite: RewriteSchema.optional(),
 });
 export type Brief = z.infer<typeof BriefSchema>;
 

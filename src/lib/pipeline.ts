@@ -10,14 +10,29 @@ import {
 } from "@/db/schema";
 import { assertTransition } from "@/domain/jobState";
 import { parseTranscript, type Edl } from "@/domain/edl";
+import { cuesFromEdl, RENDER_SPEC } from "@/domain/graphics";
 import {
   getAsrProvider,
   getLlmProvider,
   getRenderProvider,
+  getLipSyncProvider,
   type Brief,
+  type RenderConfig,
   type RenderOverlays,
 } from "@/lib/providers";
+import { getStorageProvider } from "@/lib/storage";
 import { newId } from "@/lib/id";
+
+/** Output encoding config (§1, §5), from the brief with spec defaults. */
+function renderConfigFromBrief(brief: Brief): RenderConfig {
+  const r = brief.render;
+  return {
+    width: r?.width ?? RENDER_SPEC.outputWidth,
+    height: r?.height ?? RENDER_SPEC.outputHeight,
+    codec: r?.codec ?? RENDER_SPEC.codec,
+    silencePaddingMs: r?.silencePaddingMs ?? RENDER_SPEC.silencePaddingMs,
+  };
+}
 
 /** Derive the brand overlays the renderer must burn in, from the brief. */
 function overlaysFromBrief(brief: Brief): RenderOverlays {
@@ -137,6 +152,7 @@ export async function runAnalysis(assetId: string, brief: Brief) {
 export async function runRender(assetId: string, edlId: string, brief?: Brief) {
   const asset = await requireAsset(assetId);
   const overlays = brief ? overlaysFromBrief(brief) : undefined;
+  const config = brief ? renderConfigFromBrief(brief) : undefined;
   try {
     const [edlRow] = await db
       .select()
@@ -145,6 +161,9 @@ export async function runRender(assetId: string, edlId: string, brief?: Brief) {
       .limit(1);
     if (!edlRow) throw new Error("EDL not found");
     const edl = JSON.parse(edlRow.payload) as Edl;
+
+    // Keyword-triggered graphic overlays in output time (§2–§4).
+    const cues = cuesFromEdl(edl, brief?.brand);
 
     await setStatus(assetId, asset.status, "rendering");
     const renderer = getRenderProvider();
@@ -164,6 +183,8 @@ export async function runRender(assetId: string, edlId: string, brief?: Brief) {
           aspectRatio,
           sourceStorageKey: asset.storageKey,
           overlays,
+          cues,
+          config,
         });
         await db
           .update(renderJobs)
@@ -216,6 +237,54 @@ export async function runFullPipeline(assetId: string, brief: Brief) {
       await runRender(assetId, first.id, brief);
     }
   }
+
+  // Opt-in audio-replacement / lip-sync pipeline (spec §6 / Pair 4).
+  if (brief.rewrite?.enabled) {
+    await runRewriteLipSync(assetId, brief);
+  }
+}
+
+/**
+ * Spec §6 / Pair 4: rewrite the read into a tighter, safer core pitch, generate
+ * a new voiceover, and lip-sync it onto the original footage. Experimental and
+ * off by default (brief.rewrite.enabled). Returns the lip-synced output key.
+ *
+ * NOTE: a real implementation generates TTS audio from the rewritten script;
+ * here the script text stands in for that audio asset before lip-sync.
+ */
+export async function runRewriteLipSync(
+  assetId: string,
+  brief: Brief,
+): Promise<string> {
+  const asset = await requireAsset(assetId);
+  const llm = getLlmProvider();
+  if (!llm.rewriteScript) {
+    throw new Error(`LLM provider "${llm.name}" does not support rewriteScript`);
+  }
+  const [tr] = await db
+    .select()
+    .from(transcripts)
+    .where(eq(transcripts.assetId, assetId))
+    .limit(1);
+  if (!tr) throw new Error("No transcript found for asset");
+
+  const targetSeconds = brief.rewrite?.targetSeconds ?? 45;
+  const { script } = await llm.rewriteScript({
+    transcript: parseTranscript(tr.content),
+    brief,
+    targetSeconds,
+  });
+
+  // Stand-in for TTS: persist the new VO script, then lip-sync to it.
+  const storage = getStorageProvider();
+  const audioKey = `rewrites/${assetId}/vo.txt`;
+  await storage.putBytes(audioKey, new TextEncoder().encode(script), "text/plain");
+
+  const { storageKey } = await getLipSyncProvider().sync({
+    sourceStorageKey: asset.storageKey,
+    newAudioStorageKey: audioKey,
+  });
+  return storageKey;
 }
 
 async function requireAsset(assetId: string) {

@@ -64,6 +64,7 @@ export const FILLER_WORDS = new Set([
 export const PROJECT = {
   creator: "Berto",
   handle: "@berto",
+  brand: "Current",
   project: "Current — paycheck advance integration",
   asset: "berto_current_read_raw.mp4",
   sourceDuration: 92.0,

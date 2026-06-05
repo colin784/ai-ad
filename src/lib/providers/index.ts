@@ -1,9 +1,15 @@
-import type { AsrProvider, LlmProvider, RenderProvider } from "./types";
+import type {
+  AsrProvider,
+  LlmProvider,
+  RenderProvider,
+  LipSyncProvider,
+} from "./types";
 import { mockAsr } from "./asr/mock";
 import { elevenLabsAsr } from "./asr/elevenlabs";
 import { mockLlm } from "./llm/mock";
 import { anthropicLlm } from "./llm/anthropic";
 import { mockRenderer } from "./render/mock";
+import { mockLipSync } from "./lipsync/mock";
 
 /**
  * Provider registry. Selects a concrete implementation from env vars, falling
@@ -40,6 +46,16 @@ export function getRenderProvider(): RenderProvider {
     case "mock":
     default:
       return mockRenderer;
+  }
+}
+
+export function getLipSyncProvider(): LipSyncProvider {
+  switch (process.env.LIPSYNC_PROVIDER) {
+    // case "synclabs": return syncLabsLipSync;
+    // case "heygen": return heyGenLipSync;
+    case "mock":
+    default:
+      return mockLipSync;
   }
 }
 

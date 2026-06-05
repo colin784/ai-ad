@@ -1,5 +1,6 @@
 import type { Edl, TranscriptContent } from "@/domain/edl";
 import type { AspectRatio } from "@/domain/edl";
+import type { OverlayCue } from "@/domain/graphics";
 
 /**
  * Provider seams. The scope of work calls for ASR, LLM, and render to be kept
@@ -30,6 +31,18 @@ export interface AnalyzeInput {
   brief: import("@/domain/brief").Brief;
 }
 
+export interface RewriteInput {
+  transcript: TranscriptContent;
+  brief: import("@/domain/brief").Brief;
+  targetSeconds: number;
+}
+
+export interface RewriteResult {
+  /** New, tighter voiceover script (compliance-safe, length-bounded). */
+  script: string;
+  estimatedSeconds: number;
+}
+
 export interface LlmProvider {
   readonly name: string;
   /**
@@ -37,6 +50,12 @@ export interface LlmProvider {
    * EdlSchema (and ideally repair-retry on failure) before returning.
    */
   analyze(input: AnalyzeInput): Promise<Edl[]>;
+  /**
+   * Optional (spec §6): rewrite the read into a tighter, safer core pitch at a
+   * strict target length — removing skepticism-addressing dialogue and
+   * high-dollar income claims — for the audio-replacement / lip-sync pipeline.
+   */
+  rewriteScript?(input: RewriteInput): Promise<RewriteResult>;
 }
 
 /**
@@ -57,11 +76,24 @@ export interface RenderOverlays {
   disclaimers?: string[];
 }
 
+/** Output encoding spec (§1, §5). */
+export interface RenderConfig {
+  width: number; // e.g. 1920
+  height: number; // e.g. 1080
+  codec: "hevc" | "h264";
+  upscaleFactor?: number; // computed from source height (720p→1.5, 540p→2.0)
+  silencePaddingMs: number; // buffer around speech when removing silence
+}
+
 export interface RenderInput {
   edl: Edl;
   aspectRatio: AspectRatio;
   sourceStorageKey: string;
   overlays?: RenderOverlays;
+  /** Keyword-triggered graphic overlays in output time (§2–§4). */
+  cues?: OverlayCue[];
+  /** Resolution / codec / upscale / silence settings (§1, §5). */
+  config?: RenderConfig;
 }
 
 export interface RenderResult {
@@ -72,4 +104,23 @@ export interface RenderResult {
 export interface RenderProvider {
   readonly name: string;
   render(input: RenderInput): Promise<RenderResult>;
+}
+
+/**
+ * Lip-sync seam (spec §6 / Pair 4). When the audio is rewritten + regenerated,
+ * a lip-sync model re-aligns the original footage to the new VO. Real impls:
+ * Sync Labs, HeyGen.
+ */
+export interface LipSyncInput {
+  sourceStorageKey: string;
+  newAudioStorageKey: string;
+}
+
+export interface LipSyncResult {
+  storageKey: string;
+}
+
+export interface LipSyncProvider {
+  readonly name: string;
+  sync(input: LipSyncInput): Promise<LipSyncResult>;
 }

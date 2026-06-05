@@ -73,4 +73,17 @@ export const mockLlm: LlmProvider = {
       .slice(0, count)
       .map((r, n) => buildVariant(labels[n] ?? `hook-${n}`, r.i));
   },
+
+  // Fake rewrite: drop filler/skepticism-ish lines and trim to ~targetSeconds
+  // worth of words. A real provider would prompt the model (see anthropic.ts).
+  async rewriteScript({ transcript, targetSeconds }) {
+    const segs = transcript.segments ?? [];
+    const kept = segs
+      .filter((s) => !/too good to be true|break it down|skeptical/i.test(s.text))
+      .map((s) => s.text);
+    const wordBudget = Math.round(targetSeconds * 2.6);
+    const words = kept.join(" ").split(/\s+/).slice(0, wordBudget);
+    const script = words.join(" ");
+    return { script, estimatedSeconds: Math.round(words.length / 2.6) };
+  },
 };

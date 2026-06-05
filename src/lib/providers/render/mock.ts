@@ -11,13 +11,18 @@ import { edlDuration } from "@/domain/edl";
  */
 export const mockRenderer: RenderProvider = {
   name: "mock",
-  async render({ edl, aspectRatio, overlays }: RenderInput): Promise<RenderResult> {
+  async render({ edl, aspectRatio, overlays, cues, config }: RenderInput): Promise<RenderResult> {
     const ar = aspectRatio.replace(":", "x");
     const durationSeconds = edlDuration(edl);
+    const res = config ? `_${config.width}x${config.height}_${config.codec}` : "";
     const qrTag = overlays?.qr ? "_qr" : "";
     const endTag = overlays?.endCardRequired ? "_endcard" : "";
+    const cueTag = cues && cues.length ? `_${cues.length}cues` : "";
+    // A real renderer (ffmpeg + Remotion) would: upscale per config.upscaleFactor,
+    // cut + concatenate the EDL with a config.silencePaddingMs buffer, burn in
+    // each cue's graphic at its position/time, and encode to config.codec.
     return {
-      storageKey: `renders/${edl.variantId}_${ar}${qrTag}${endTag}.mp4`,
+      storageKey: `renders/${edl.variantId}_${ar}${res}${qrTag}${endTag}${cueTag}.mp4`,
       durationSeconds,
     };
   },
