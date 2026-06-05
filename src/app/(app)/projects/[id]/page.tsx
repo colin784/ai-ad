@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { Card, PageHeader, StatusBadge, EmptyState } from "@/components/ui";
 import { RunPipelineButton } from "@/components/run-pipeline-button";
+import { UploadFootage } from "@/components/upload-footage";
 import { edlDuration, type Edl } from "@/domain/edl";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +64,9 @@ export default async function ProjectDetailPage({
 
   return (
     <div>
-      <PageHeader title={project.name} subtitle={project.creatorName ?? undefined} />
+      <PageHeader title={project.name} subtitle={project.creatorName ?? undefined}>
+        <UploadFootage projectId={id} />
+      </PageHeader>
       {project.brief && (
         <Card className="mb-6">
           <div className="text-xs uppercase tracking-wide text-neutral-500">Brief</div>

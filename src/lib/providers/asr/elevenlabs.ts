@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AsrProvider, TranscribeInput } from "../types";
 import { TranscriptSchema, type TranscriptContent, type Word } from "@/domain/edl";
+import { getStorageProvider } from "@/lib/storage";
 
 /**
  * ElevenLabs Scribe — speech-to-text with word-level timestamps and speaker
@@ -70,24 +70,21 @@ export const elevenLabsAsr: AsrProvider = {
     if (languageHint) form.append("language_code", languageHint);
 
     if (/^https?:\/\//i.test(storageKey)) {
-      // File lives in (public/presigned) cloud storage — let Scribe fetch it.
+      // Already a fetchable URL — let Scribe pull it directly.
       form.append("cloud_storage_url", storageKey);
     } else {
-      // Local dev: read from the storage dir that stands in for object storage.
-      const storageDir = process.env.STORAGE_DIR ?? "./storage";
-      const filePath = path.resolve(storageDir, storageKey);
-      let bytes: Buffer;
-      try {
-        bytes = await readFile(filePath);
-      } catch {
-        throw new Error(
-          `Source media not found at ${filePath}. ` +
-            `Place the file there (STORAGE_DIR + storageKey) or use an https URL.`,
-        );
+      // Resolve the object via the storage layer. Supabase yields a signed read
+      // URL (Scribe fetches it — best for large files); local dev returns null,
+      // so we read the bytes and upload them multipart.
+      const storage = getStorageProvider();
+      const readUrl = await storage.getReadUrl(storageKey);
+      if (readUrl) {
+        form.append("cloud_storage_url", readUrl);
+      } else {
+        const bytes = await storage.getBytes(storageKey);
+        // Re-wrap so the BlobPart is plainly ArrayBuffer-backed (TS lib quirk).
+        form.append("file", new Blob([new Uint8Array(bytes)]), path.basename(storageKey));
       }
-      // Wrap in a fresh Uint8Array so the type is a plain ArrayBuffer-backed
-      // BlobPart (Node's Buffer is typed over ArrayBufferLike).
-      form.append("file", new Blob([new Uint8Array(bytes)]), path.basename(filePath));
     }
 
     const res = await fetch(API_URL, {
