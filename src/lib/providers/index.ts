@@ -10,6 +10,7 @@ import { mockLlm } from "./llm/mock";
 import { anthropicLlm } from "./llm/anthropic";
 import { mockRenderer } from "./render/mock";
 import { shotstackRenderer } from "./render/shotstack";
+import { creatomateRenderer } from "./render/creatomate";
 import { mockLipSync } from "./lipsync/mock";
 
 /**
@@ -45,6 +46,8 @@ export function getRenderProvider(): RenderProvider {
   switch (process.env.RENDER_PROVIDER) {
     case "shotstack":
       return shotstackRenderer;
+    case "creatomate":
+      return creatomateRenderer;
     // case "ffmpeg": return ffmpegRenderer;
     case "mock":
     default:
