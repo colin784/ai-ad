@@ -75,6 +75,7 @@ export interface RenderOverlays {
     delaySeconds?: number; // bring it in this many seconds into the cut (absolute)
     appearAtPercent?: number; // …or at this % of the cut length (relative)
     position?: string; // e.g. "top-right"
+    content?: string; // URL/text the QR encodes
   };
   endCardRequired?: boolean;
   promoCode?: string;

@@ -47,6 +47,7 @@ function overlaysFromBrief(brief: Brief): RenderOverlays {
           delaySeconds: p.qrDelaySeconds,
           appearAtPercent: p.qrAppearAtPercent,
           position: p.qrPosition,
+          content: brief.description?.trackingLinkPlaceholder,
         }
       : undefined,
     endCardRequired: p?.endCardRequired,

@@ -9,6 +9,7 @@ import { elevenLabsAsr } from "./asr/elevenlabs";
 import { mockLlm } from "./llm/mock";
 import { anthropicLlm } from "./llm/anthropic";
 import { mockRenderer } from "./render/mock";
+import { shotstackRenderer } from "./render/shotstack";
 import { mockLipSync } from "./lipsync/mock";
 
 /**
@@ -42,6 +43,8 @@ export function getLlmProvider(): LlmProvider {
 
 export function getRenderProvider(): RenderProvider {
   switch (process.env.RENDER_PROVIDER) {
+    case "shotstack":
+      return shotstackRenderer;
     // case "ffmpeg": return ffmpegRenderer;
     case "mock":
     default:
