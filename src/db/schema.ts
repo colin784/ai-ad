@@ -22,6 +22,23 @@ import {
 
 const epochMs = () => Date.now();
 
+/**
+ * A brand template: the structured Brief (compliance, hook, placement, QR,
+ * render style, script) that drives how this brand's ads are cut. Created from
+ * a parsed brief/script or seeded as a preset. This is the unit the Produce
+ * flow selects.
+ */
+export const brands = pgTable("brands", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  // Structured Brief JSON (see src/domain/brief.ts), validated at the edges.
+  brief: text("brief").notNull(),
+  // Original pasted/uploaded brief text, if created from one.
+  sourceText: text("source_text"),
+  isPreset: boolean("is_preset").notNull().default(false),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
+});
+
 export const creators = pgTable("creators", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -59,9 +76,9 @@ export type AssetStatus = (typeof ASSET_STATUSES)[number];
 
 export const sourceAssets = pgTable("source_assets", {
   id: text("id").primaryKey(),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
+  // Either a legacy project, or (new model) a brand template. Both optional.
+  projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  brandId: text("brand_id").references(() => brands.id, { onDelete: "set null" }),
   filename: text("filename").notNull(),
   // Key into object storage (local filesystem stands in during dev).
   storageKey: text("storage_key").notNull(),
@@ -133,6 +150,7 @@ export const outputVariants = pgTable("output_variants", {
   createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(epochMs),
 });
 
+export type Brand = typeof brands.$inferSelect;
 export type Creator = typeof creators.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type SourceAsset = typeof sourceAssets.$inferSelect;

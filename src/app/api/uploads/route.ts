@@ -18,6 +18,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   let body: {
     projectId?: string;
+    brandId?: string;
     filename?: string;
     contentType?: string;
     sizeBytes?: number;
@@ -28,9 +29,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  const { projectId, filename, contentType, sizeBytes } = body;
-  if (!projectId || !filename) {
-    return NextResponse.json({ error: "projectId and filename are required" }, { status: 400 });
+  const { projectId, brandId, filename, contentType, sizeBytes } = body;
+  if (!filename || (!projectId && !brandId)) {
+    return NextResponse.json(
+      { error: "filename and one of projectId / brandId are required" },
+      { status: 400 },
+    );
   }
 
   const assetId = newId("as");
@@ -40,7 +44,8 @@ export async function POST(req: Request) {
   try {
     await db.insert(sourceAssets).values({
       id: assetId,
-      projectId,
+      projectId: projectId ?? null,
+      brandId: brandId ?? null,
       filename: safeName,
       storageKey,
       sizeBytes: typeof sizeBytes === "number" ? sizeBytes : null,

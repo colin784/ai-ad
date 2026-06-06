@@ -1,5 +1,6 @@
 import type { AnalyzeInput, LlmProvider } from "../types";
 import { EdlSchema, type Edl, type SegmentRole } from "@/domain/edl";
+import { createBrief } from "@/domain/brief";
 
 /**
  * Deterministic fake LLM analysis. Instead of calling a model, it picks the
@@ -85,5 +86,16 @@ export const mockLlm: LlmProvider = {
     const words = kept.join(" ").split(/\s+/).slice(0, wordBudget);
     const script = words.join(" ");
     return { script, estimatedSeconds: Math.round(words.length / 2.6) };
+  },
+
+  // Naive brief parser: pulls a name + overview from the text. A real parse
+  // uses the model (see anthropic.ts).
+  async parseBrief({ text, name }) {
+    const firstLine = text.split(/\n/).map((l) => l.trim()).find(Boolean) ?? "Brand";
+    return createBrief({
+      brand: name || firstLine.slice(0, 40),
+      overview: text.replace(/\s+/g, " ").trim().slice(0, 240),
+      script: { mode: "adapt", variants: [] },
+    });
   },
 };

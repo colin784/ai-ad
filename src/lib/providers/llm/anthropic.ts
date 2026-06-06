@@ -7,7 +7,7 @@ import {
   type Edl,
   type TranscriptContent,
 } from "@/domain/edl";
-import { renderBriefForPrompt, type Brief } from "@/domain/brief";
+import { renderBriefForPrompt, createBrief, type Brief } from "@/domain/brief";
 import { checkEdlCompliance, complianceErrors } from "@/domain/compliance";
 import { renderPlaybookForPrompt } from "@/domain/playbook";
 import type { AnalyzeInput, LlmProvider } from "../types";
@@ -320,5 +320,69 @@ Return JSON: { "script": string, "estimatedSeconds": number }.`;
       .object({ script: z.string(), estimatedSeconds: z.number() })
       .parse(JSON.parse(jsonText));
     return parsed;
+  },
+
+  // Parse a raw brief/script into a structured brand template.
+  async parseBrief({ text, name }): Promise<Brief> {
+    const sys = `You convert a sponsor brief or script into a structured brand template.
+Extract: brand name; a one-line overview; the primary hook; key selling points; the call to action; any promo code and bonus; and compliance rules — things the creator must DO, must NOT do, FORBIDDEN words/phrases that must never appear, and any required verbatim disclaimers. If the brief includes a script, capture whether it should be read verbatim or adapted.
+Return JSON only.`;
+
+    const message = await client().beta.messages.create({
+      model: process.env.LLM_MODEL ?? DEFAULT_MODEL,
+      max_tokens: 4000,
+      betas: [STRUCTURED_OUTPUTS_BETA],
+      thinking: { type: "adaptive" },
+      system: [{ type: "text", text: sys, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: `${name ? `Brand: ${name}\n\n` : ""}BRIEF:\n${text}` }],
+      output_format: {
+        type: "json_schema",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            brand: { type: "string" },
+            overview: { type: ["string", "null"] },
+            primaryHook: { type: ["string", "null"] },
+            cta: { type: ["string", "null"] },
+            sellingPoints: { type: "array", items: { type: "string" } },
+            promoCode: { type: ["string", "null"] },
+            bonus: { type: ["string", "null"] },
+            do: { type: "array", items: { type: "string" } },
+            dont: { type: "array", items: { type: "string" } },
+            forbiddenTerms: { type: "array", items: { type: "string" } },
+            requiredDisclaimers: { type: "array", items: { type: "string" } },
+            scriptMode: { type: "string", enum: ["verbatim", "adapt"] },
+          },
+          required: [
+            "brand", "overview", "primaryHook", "cta", "sellingPoints",
+            "promoCode", "bonus", "do", "dont", "forbiddenTerms",
+            "requiredDisclaimers", "scriptMode",
+          ],
+        },
+      },
+    });
+
+    const jsonText = extractJsonText(message.content);
+    if (!jsonText) throw new Error("parseBrief: model returned no JSON");
+    const p = JSON.parse(jsonText) as Record<string, unknown>;
+    return createBrief({
+      brand: (p.brand as string) || name || "Brand",
+      overview: (p.overview as string) ?? undefined,
+      primaryHook: (p.primaryHook as string) ?? undefined,
+      cta: (p.cta as string) ?? undefined,
+      sellingPoints: (p.sellingPoints as string[]) ?? [],
+      description: {
+        promoCode: (p.promoCode as string) ?? undefined,
+        bonus: (p.bonus as string) ?? undefined,
+      },
+      compliance: {
+        do: (p.do as string[]) ?? [],
+        dont: (p.dont as string[]) ?? [],
+        forbiddenTerms: (p.forbiddenTerms as string[]) ?? [],
+        requiredDisclaimers: (p.requiredDisclaimers as string[]) ?? [],
+      },
+      script: { mode: (p.scriptMode as "verbatim" | "adapt") ?? "adapt", variants: [] },
+    });
   },
 };

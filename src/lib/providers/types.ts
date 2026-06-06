@@ -56,6 +56,11 @@ export interface LlmProvider {
    * high-dollar income claims — for the audio-replacement / lip-sync pipeline.
    */
   rewriteScript?(input: RewriteInput): Promise<RewriteResult>;
+  /**
+   * Parse a raw brief / script into a structured brand template (Brief).
+   * Used when creating a brand from pasted/uploaded brief text.
+   */
+  parseBrief?(input: { text: string; name?: string }): Promise<import("@/domain/brief").Brief>;
 }
 
 /**

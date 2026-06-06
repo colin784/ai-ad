@@ -7,11 +7,8 @@ import { toast } from "sonner";
 import { palette } from "./panel-ui";
 
 const LINKS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/creators", label: "Creators" },
-  { href: "/projects", label: "Projects" },
-  { href: "/assets", label: "Assets" },
-  { href: "/review", label: "Review" },
+  { href: "/", label: "Produce" },
+  { href: "/brands", label: "Brands" },
 ];
 
 export function Nav() {
