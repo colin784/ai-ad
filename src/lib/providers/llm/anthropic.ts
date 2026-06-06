@@ -353,11 +353,15 @@ Return JSON only.`;
             forbiddenTerms: { type: "array", items: { type: "string" } },
             requiredDisclaimers: { type: "array", items: { type: "string" } },
             scriptMode: { type: "string", enum: ["verbatim", "adapt"] },
+            script: {
+              type: ["string", "null"],
+              description: "The full read/script copy if the brief contains one, else null",
+            },
           },
           required: [
             "brand", "overview", "primaryHook", "cta", "sellingPoints",
             "promoCode", "bonus", "do", "dont", "forbiddenTerms",
-            "requiredDisclaimers", "scriptMode",
+            "requiredDisclaimers", "scriptMode", "script",
           ],
         },
       },
@@ -382,7 +386,10 @@ Return JSON only.`;
         forbiddenTerms: (p.forbiddenTerms as string[]) ?? [],
         requiredDisclaimers: (p.requiredDisclaimers as string[]) ?? [],
       },
-      script: { mode: (p.scriptMode as "verbatim" | "adapt") ?? "adapt", variants: [] },
+      script: {
+        mode: (p.scriptMode as "verbatim" | "adapt") ?? "adapt",
+        variants: typeof p.script === "string" && p.script.trim() ? [p.script.trim()] : [],
+      },
     });
   },
 };

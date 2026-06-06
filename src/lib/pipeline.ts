@@ -11,6 +11,7 @@ import {
 import { assertTransition } from "@/domain/jobState";
 import { parseTranscript, type Edl } from "@/domain/edl";
 import { cuesFromEdl, RENDER_SPEC } from "@/domain/graphics";
+import { alignScriptToTranscript } from "@/domain/align";
 import {
   getAsrProvider,
   getLlmProvider,
@@ -127,7 +128,18 @@ export async function runAnalysis(assetId: string, brief: Brief) {
 
     await setStatus(assetId, asset.status, "analyzed");
     const transcript = parseTranscript(tr.content);
-    const edls = await getLlmProvider().analyze({ transcript, brief });
+
+    // Stage 2: if the brand template has a script, align it deterministically
+    // (no LLM). Fall back to the LLM only for unscripted footage.
+    let edls: Edl[] = [];
+    const scriptText = brief.script?.variants?.[0]?.trim();
+    if (scriptText) {
+      const aligned = alignScriptToTranscript(transcript, scriptText, brief);
+      if (aligned) edls = [aligned];
+    }
+    if (edls.length === 0) {
+      edls = (await getLlmProvider().analyze({ transcript, brief })) ?? [];
+    }
 
     for (const edl of edls) {
       await db.insert(editDecisionLists).values({
