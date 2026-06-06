@@ -94,12 +94,18 @@ export function buildCreatomateSource(
   };
 }
 
+function qrUrlFor(overlays: RenderOverlays | undefined): string {
+  const raw = overlays?.qr?.content;
+  const data = raw && !raw.startsWith("[") ? raw : "https://pnnl.co";
+  return `https://api.qrserver.com/v1/create-qr-code/?size=400x400&qzone=2&data=${encodeURIComponent(data)}`;
+}
+
 export const creatomateRenderer: RenderProvider = {
   name: "creatomate",
   async render({ edl, sourceStorageKey, overlays, cues, config }: RenderInput): Promise<RenderResult> {
     const apiKey = process.env.CREATOMATE_API_KEY;
     if (!apiKey) throw new Error("CREATOMATE_API_KEY is not set");
-    const base = "https://api.creatomate.com/v1";
+    const base = "https://api.creatomate.com/v2";
 
     const storage = getStorageProvider();
     const srcUrl = await storage.getReadUrl(sourceStorageKey, 7200);
@@ -107,12 +113,32 @@ export const creatomateRenderer: RenderProvider = {
       throw new Error("Creatomate needs a fetchable source URL — set STORAGE_PROVIDER=supabase.");
     }
 
-    const { source, totalSeconds: total } = buildCreatomateSource(edl, srcUrl, overlays, cues, config);
+    // Template mode (when CREATOMATE_TEMPLATE_ID is set): render a designed
+    // brand template, injecting the source video + dynamic fields via
+    // `modifications`. Otherwise fall back to direct-source mode (the
+    // programmatic multi-segment cut).
+    const templateId = process.env.CREATOMATE_TEMPLATE_ID;
+    let payload: Record<string, unknown>;
+    let total: number;
+    if (templateId) {
+      const sourceKey = process.env.CREATOMATE_SOURCE_KEY ?? "Video.source";
+      const modifications: Record<string, string> = { [sourceKey]: srcUrl };
+      const hookKey = process.env.CREATOMATE_HOOK_KEY;
+      if (hookKey) modifications[hookKey] = edl.hookText;
+      const qrKey = process.env.CREATOMATE_QR_KEY;
+      if (qrKey) modifications[qrKey] = qrUrlFor(overlays);
+      payload = { template_id: templateId, modifications };
+      total = edl.segments.reduce((a, s) => a + (s.sourceEnd - s.sourceStart), 0);
+    } else {
+      const built = buildCreatomateSource(edl, srcUrl, overlays, cues, config);
+      payload = { source: built.source };
+      total = built.totalSeconds;
+    }
 
     const submit = await fetch(`${base}/renders`, {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ source }),
+      body: JSON.stringify(payload),
     });
     const submitJson = await submit.json();
     if (!submit.ok) {
