@@ -100,12 +100,46 @@ function qrUrlFor(overlays: RenderOverlays | undefined): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=400x400&qzone=2&data=${encodeURIComponent(data)}`;
 }
 
+const CREATOMATE_BASE = "https://api.creatomate.com/v2";
+
+/** Submit a render payload, poll until done, return the hosted output URL. */
+async function submitAndPoll(
+  apiKey: string,
+  payload: Record<string, unknown>,
+): Promise<string> {
+  const submit = await fetch(`${CREATOMATE_BASE}/renders`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const submitJson = await submit.json();
+  if (!submit.ok) {
+    throw new Error(`Creatomate submit failed (${submit.status}): ${JSON.stringify(submitJson).slice(0, 400)}`);
+  }
+  const render = Array.isArray(submitJson) ? submitJson[0] : submitJson;
+  const renderId: string = render?.id;
+  if (!renderId) throw new Error("Creatomate: no render id returned");
+
+  const deadline = Date.now() + 6 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await sleep(4000);
+    const st = await fetch(`${CREATOMATE_BASE}/renders/${renderId}`, {
+      headers: { authorization: `Bearer ${apiKey}` },
+    });
+    const stj = await st.json();
+    if (stj.status === "succeeded") return stj.url as string;
+    if (stj.status === "failed") {
+      throw new Error(`Creatomate render failed: ${stj.error_message ?? "unknown"}`);
+    }
+  }
+  throw new Error("Creatomate render timed out");
+}
+
 export const creatomateRenderer: RenderProvider = {
   name: "creatomate",
   async render({ edl, sourceStorageKey, overlays, cues, config }: RenderInput): Promise<RenderResult> {
     const apiKey = process.env.CREATOMATE_API_KEY;
     if (!apiKey) throw new Error("CREATOMATE_API_KEY is not set");
-    const base = "https://api.creatomate.com/v2";
 
     const storage = getStorageProvider();
     const srcUrl = await storage.getReadUrl(sourceStorageKey, 7200);
@@ -113,62 +147,33 @@ export const creatomateRenderer: RenderProvider = {
       throw new Error("Creatomate needs a fetchable source URL — set STORAGE_PROVIDER=supabase.");
     }
 
-    // Template mode (when CREATOMATE_TEMPLATE_ID is set): render a designed
-    // brand template, injecting the source video + dynamic fields via
-    // `modifications`. Otherwise fall back to direct-source mode (the
-    // programmatic multi-segment cut).
     const templateId = process.env.CREATOMATE_TEMPLATE_ID;
-    let payload: Record<string, unknown>;
+    let finalUrl: string;
     let total: number;
+
     if (templateId) {
+      // Two-step: (1) render the script-aligned CUT (videos only, no overlays),
+      // (2) wrap that cut in the designed brand template.
+      const cut = buildCreatomateSource(edl, srcUrl, undefined, undefined, config);
+      total = cut.totalSeconds;
+      const cutUrl = await submitAndPoll(apiKey, { source: cut.source });
+
       const sourceKey = process.env.CREATOMATE_SOURCE_KEY ?? "Video.source";
-      const modifications: Record<string, string> = { [sourceKey]: srcUrl };
+      const modifications: Record<string, string> = { [sourceKey]: cutUrl };
       const hookKey = process.env.CREATOMATE_HOOK_KEY;
       if (hookKey) modifications[hookKey] = edl.hookText;
       const qrKey = process.env.CREATOMATE_QR_KEY;
       if (qrKey) modifications[qrKey] = qrUrlFor(overlays);
-      payload = { template_id: templateId, modifications };
-      total = edl.segments.reduce((a, s) => a + (s.sourceEnd - s.sourceStart), 0);
+
+      finalUrl = await submitAndPoll(apiKey, { template_id: templateId, modifications });
     } else {
+      // Single-step direct-source: cut + overlays in one render.
       const built = buildCreatomateSource(edl, srcUrl, overlays, cues, config);
-      payload = { source: built.source };
       total = built.totalSeconds;
+      finalUrl = await submitAndPoll(apiKey, { source: built.source });
     }
 
-    const submit = await fetch(`${base}/renders`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const submitJson = await submit.json();
-    if (!submit.ok) {
-      throw new Error(`Creatomate submit failed (${submit.status}): ${JSON.stringify(submitJson).slice(0, 400)}`);
-    }
-    const render = Array.isArray(submitJson) ? submitJson[0] : submitJson;
-    const renderId: string = render?.id;
-    if (!renderId) throw new Error("Creatomate: no render id returned");
-
-    // Poll until done (a webhook flow is the production upgrade; see Phase 2.1).
-    const deadline = Date.now() + 6 * 60 * 1000;
-    let url: string | undefined;
-    while (Date.now() < deadline) {
-      await sleep(4000);
-      const st = await fetch(`${base}/renders/${renderId}`, {
-        headers: { authorization: `Bearer ${apiKey}` },
-      });
-      const stj = await st.json();
-      const status = stj.status;
-      if (status === "succeeded") {
-        url = stj.url;
-        break;
-      }
-      if (status === "failed") {
-        throw new Error(`Creatomate render failed: ${stj.error_message ?? "unknown"}`);
-      }
-    }
-    if (!url) throw new Error("Creatomate render timed out");
-
-    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+    const bytes = new Uint8Array(await (await fetch(finalUrl)).arrayBuffer());
     const width = config?.width ?? 1920;
     const height = config?.height ?? 1080;
     const outKey = `renders/${edl.variantId}_${width}x${height}.mp4`;
