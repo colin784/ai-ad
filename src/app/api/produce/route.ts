@@ -1,26 +1,26 @@
 import { NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
+import { sourceAssets } from "@/db/schema";
 import {
-  sourceAssets,
-  brands,
-  editDecisionLists,
-  renderJobs,
-  outputVariants,
-} from "@/db/schema";
-import { runFullPipeline } from "@/lib/pipeline";
-import { BriefSchema, createBrief } from "@/domain/brief";
-import { edlDuration, type Edl } from "@/domain/edl";
+  briefForAsset,
+  runFullPipeline,
+  collectVariants,
+} from "@/lib/pipeline";
+import { inngest } from "@/lib/inngest/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
+const USE_INNGEST = process.env.USE_INNGEST === "true";
+
 /**
- * POST /api/produce — turn uploaded footage into finished cut(s) using the
- * asset's brand template. Body: { assetId }.
+ * POST /api/produce — turn uploaded footage into finished cut(s).
+ * Body: { assetId }.
  *
- * NOTE: runs the pipeline inline for the demo (transcribe → analyze → render).
- * Production should enqueue a job and stream progress.
+ * Production (USE_INNGEST=true): enqueues a durable job and returns immediately
+ * (202) — the client polls /api/produce/status. Fallback (no Inngest): runs the
+ * pipeline inline and returns the variants, so the app works without queue infra.
  */
 export async function POST(req: Request) {
   const { assetId } = (await req.json().catch(() => ({}))) as { assetId?: string };
@@ -28,46 +28,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "assetId is required" }, { status: 400 });
   }
 
+  const [asset] = await db.select().from(sourceAssets).where(eq(sourceAssets.id, assetId)).limit(1);
+  if (!asset) return NextResponse.json({ error: "asset not found" }, { status: 404 });
+
+  if (USE_INNGEST) {
+    await inngest.send({ name: "asset/produce.requested", data: { assetId } });
+    return NextResponse.json({ queued: true, assetId }, { status: 202 });
+  }
+
+  // Inline fallback.
   try {
-    const [asset] = await db.select().from(sourceAssets).where(eq(sourceAssets.id, assetId)).limit(1);
-    if (!asset) return NextResponse.json({ error: "asset not found" }, { status: 404 });
-
-    let brief = createBrief({});
-    if (asset.brandId) {
-      const [brand] = await db.select().from(brands).where(eq(brands.id, asset.brandId)).limit(1);
-      if (brand) brief = BriefSchema.parse(JSON.parse(brand.brief));
-    }
-
+    const brief = await briefForAsset(assetId);
     await runFullPipeline(assetId, brief);
-
-    // Collect the produced variants + render outputs.
-    const edls = await db
-      .select()
-      .from(editDecisionLists)
-      .where(eq(editDecisionLists.assetId, assetId));
-    const edlIds = edls.map((e) => e.id);
-    const jobs = edlIds.length
-      ? await db.select().from(renderJobs).where(inArray(renderJobs.edlId, edlIds))
-      : [];
-    const jobIds = jobs.map((j) => j.id);
-    const outputs = jobIds.length
-      ? await db.select().from(outputVariants).where(inArray(outputVariants.renderJobId, jobIds))
-      : [];
-
-    const variants = edls.map((row) => {
-      const edl = JSON.parse(row.payload) as Edl;
-      const edlJobs = jobs.filter((j) => j.edlId === row.id);
-      const outs = outputs.filter((o) => edlJobs.some((j) => j.id === o.renderJobId));
-      return {
-        variantId: edl.variantId,
-        hookText: edl.hookText,
-        segments: edl.segments.length,
-        durationSeconds: +edlDuration(edl).toFixed(1),
-        outputs: outs.map((o) => ({ aspectRatio: o.aspectRatio, storageKey: o.storageKey })),
-      };
-    });
-
-    return NextResponse.json({ ok: true, variants });
+    return NextResponse.json({ ok: true, variants: await collectVariants(assetId) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

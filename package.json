@@ -22,6 +22,7 @@
     "@anthropic-ai/sdk": "^0.100.0",
     "@supabase/supabase-js": "^2.48.0",
     "drizzle-orm": "^0.38.3",
+    "inngest": "^3.27.0",
     "lucide-react": "^0.469.0",
     "sonner": "^1.7.4",
     "postgres": "^3.4.5",

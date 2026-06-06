@@ -61,7 +61,7 @@ export function ProduceFlow({ brands }: { brands: Brand[] }) {
       if (!put.ok) throw new Error(`Upload failed (${put.status})`);
 
       setPhase("producing");
-      setStatusText("Transcribing → analyzing → rendering…");
+      setStatusText("Starting…");
       const prodRes = await fetch("/api/produce", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -70,11 +70,16 @@ export function ProduceFlow({ brands }: { brands: Brand[] }) {
       const prod = await prodRes.json();
       if (!prodRes.ok) throw new Error(prod.error ?? "Produce failed");
 
-      setVariants(prod.variants ?? []);
+      // Queued (Inngest) → poll status; inline → variants returned directly.
+      const result: Variant[] = prod.queued
+        ? await pollStatus(init.assetId, setStatusText)
+        : (prod.variants ?? []);
+
+      setVariants(result);
       setPhase("done");
       setStatusText(null);
       toast.success("Finished cut ready", {
-        description: `${prod.variants?.length ?? 0} variant(s) produced`,
+        description: `${result.length} variant(s) produced`,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -236,4 +241,38 @@ export function ProduceFlow({ brands }: { brands: Brand[] }) {
       )}
     </div>
   );
+}
+
+const STAGE_TEXT: Record<string, string> = {
+  uploaded: "Queued…",
+  transcribing: "Transcribing…",
+  ready_for_analysis: "Analyzing…",
+  analyzed: "Rendering…",
+  rendering: "Rendering…",
+  review: "Finishing…",
+  exported: "Finishing…",
+};
+
+// Poll the async pipeline until the cut is ready (or it fails / times out).
+async function pollStatus(
+  assetId: string,
+  setStatusText: (s: string) => void,
+): Promise<Variant[]> {
+  const deadline = Date.now() + 8 * 60 * 1000; // 8 min ceiling
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2500));
+    const res = await fetch(`/api/produce/status?assetId=${encodeURIComponent(assetId)}`, {
+      cache: "no-store",
+    });
+    const s = await res.json();
+    if (!res.ok) throw new Error(s.error ?? "Status check failed");
+    setStatusText(STAGE_TEXT[s.status] ?? "Processing…");
+    if (s.status === "failed") {
+      throw new Error(s.error ?? `Failed at ${s.failedStage ?? "processing"}`);
+    }
+    if (s.status === "review" || s.status === "exported") {
+      return (s.variants ?? []) as Variant[];
+    }
+  }
+  throw new Error("Timed out waiting for the cut");
 }

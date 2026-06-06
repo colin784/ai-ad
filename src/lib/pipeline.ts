@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  brands,
   sourceAssets,
   transcripts,
   editDecisionLists,
@@ -9,7 +10,8 @@ import {
   type AssetStatus,
 } from "@/db/schema";
 import { assertTransition } from "@/domain/jobState";
-import { parseTranscript, type Edl } from "@/domain/edl";
+import { parseTranscript, edlDuration, type Edl } from "@/domain/edl";
+import { BriefSchema, createBrief } from "@/domain/brief";
 import { cuesFromEdl, RENDER_SPEC } from "@/domain/graphics";
 import { alignScriptToTranscript } from "@/domain/align";
 import {
@@ -226,34 +228,74 @@ export async function runRender(assetId: string, edlId: string, brief?: Brief) {
   }
 }
 
+/** Resolve the brand template's Brief for an asset (falls back to defaults). */
+export async function briefForAsset(assetId: string): Promise<Brief> {
+  const asset = await requireAsset(assetId);
+  if (asset.brandId) {
+    const [brand] = await db.select().from(brands).where(eq(brands.id, asset.brandId)).limit(1);
+    if (brand) {
+      try {
+        return BriefSchema.parse(JSON.parse(brand.brief));
+      } catch {
+        /* fall through to defaults */
+      }
+    }
+  }
+  return createBrief({});
+}
+
+/** Render the first proposed variant (auto-approved for the demo). */
+export async function renderFirstVariant(assetId: string, brief: Brief) {
+  const [first] = await db
+    .select()
+    .from(editDecisionLists)
+    .where(eq(editDecisionLists.assetId, assetId))
+    .limit(1);
+  if (!first) return;
+  await db.update(editDecisionLists).set({ approved: true }).where(eq(editDecisionLists.id, first.id));
+  await runRender(assetId, first.id, brief);
+}
+
 /**
- * Convenience: run the whole MVP loop end-to-end for one asset, rendering the
- * first proposed variant. This is what the demo "Run pipeline" button calls.
+ * Run the whole loop inline (transcribe → analyze → render). Used as the
+ * synchronous fallback when the Inngest queue isn't enabled; in production each
+ * of these runs as a separate durable Inngest step (see src/lib/inngest).
  */
 export async function runFullPipeline(assetId: string, brief: Brief) {
   await runTranscription(assetId);
-  const edls = await runAnalysis(assetId, brief);
-  if (edls && edls.length > 0) {
-    const [first] = await db
-      .select()
-      .from(editDecisionLists)
-      .where(eq(editDecisionLists.assetId, assetId))
-      .limit(1);
-    if (first) {
-      // Auto-approve the first variant for the demo render (a human does this
-      // in the real review editor — export still requires approval).
-      await db
-        .update(editDecisionLists)
-        .set({ approved: true })
-        .where(eq(editDecisionLists.id, first.id));
-      await runRender(assetId, first.id, brief);
-    }
-  }
-
-  // Opt-in audio-replacement / lip-sync pipeline (spec §6 / Pair 4).
+  await runAnalysis(assetId, brief);
+  await renderFirstVariant(assetId, brief);
   if (brief.rewrite?.enabled) {
     await runRewriteLipSync(assetId, brief);
   }
+}
+
+/** Collect produced variants + render outputs for an asset (for UI/status). */
+export async function collectVariants(assetId: string) {
+  const edls = await db
+    .select()
+    .from(editDecisionLists)
+    .where(eq(editDecisionLists.assetId, assetId));
+  const edlIds = edls.map((e) => e.id);
+  const jobs = edlIds.length
+    ? await db.select().from(renderJobs).where(inArray(renderJobs.edlId, edlIds))
+    : [];
+  const jobIds = jobs.map((j) => j.id);
+  const outputs = jobIds.length
+    ? await db.select().from(outputVariants).where(inArray(outputVariants.renderJobId, jobIds))
+    : [];
+  return edls.map((row) => {
+    const edl = JSON.parse(row.payload) as Edl;
+    const edlJobs = jobs.filter((j) => j.edlId === row.id);
+    const outs = outputs.filter((o) => edlJobs.some((j) => j.id === o.renderJobId));
+    return {
+      variantId: edl.variantId,
+      hookText: edl.hookText,
+      segments: edl.segments.length,
+      durationSeconds: +edlDuration(edl).toFixed(1),
+      outputs: outs.map((o) => ({ aspectRatio: o.aspectRatio, storageKey: o.storageKey })),
+    };
+  });
 }
 
 /**
